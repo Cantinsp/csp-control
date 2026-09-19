@@ -1360,9 +1360,15 @@ svg.leaflet-image-layer.leaflet-interactive path {
     const selectTurno = document.getElementById('map-turno-select');
     if(selectTurno) selectTurno.value = turnoId;
     poblarSelectorRondas();
+    if(rondaMap) rondaMap.invalidateSize();
     renderMapa();
     const mapEl = document.getElementById('ronda-map');
     if(mapEl) mapEl.scrollIntoView({behavior:'smooth', block:'center'});
+    // el scroll suave cambia el layout mientras se anima — confirmamos tamaño
+    // y volvemos a encuadrar una vez que termina, para que no quede descentrado
+    setTimeout(()=>{
+      if(rondaMap){ rondaMap.invalidateSize(); renderMapa(); }
+    }, 450);
   }
 
   function nombresInstalaciones(){
@@ -1684,6 +1690,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
   function renderMapa(){
     if(!rondaMap) return;
+    rondaMap.invalidateSize();
     const t = turno(mapaTurnoSeleccionado);
     rondaMapLayer.clearLayers();
 
