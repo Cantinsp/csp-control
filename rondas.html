@@ -813,6 +813,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
   .instalacion-line{ font-size:13px; padding:4px 0; color:var(--navy); }
   .instalacion-line.muted{ color:#9aa5b1; }
   .instalacion-line.alert-text{ color:var(--skip); font-weight:600; }
+  .instalacion-novedad-item{ margin-bottom:12px; }
+  .instalacion-novedad-item:last-child{ margin-bottom:0; }
 
   .s-section-title{ font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; color:var(--navy); margin:22px 0 10px; display:flex; align-items:center; gap:8px; }
   .s-section-title::before{ content:''; width:4px; height:14px; background:var(--gold); display:inline-block; border-radius:2px; }
@@ -972,10 +974,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <div class="s-header">
       <div class="s-eyebrow">CSP Control · en vivo</div>
       <div class="s-title">Operación de hoy</div>
+      <div class="g-sub" id="s-fecha-hoy" style="color:#6b7280; margin-top:2px;">—</div>
     </div>
 
     <div class="s-summary">
-      <div class="s-card"><div class="s-card-num" id="s-total-turnos">0</div><div class="s-card-label">Turnos activos</div></div>
+      <div class="s-card s-card-click" id="s-card-instalaciones"><div class="s-card-num" id="s-total-instalaciones">0</div><div class="s-card-label">Instalaciones activas</div></div>
       <div class="s-card alert s-card-click" id="s-card-sos"><div class="s-card-num" id="s-total-sos">0</div><div class="s-card-label">SOS activos</div></div>
       <div class="s-card alert s-card-click" id="s-card-hv"><div class="s-card-num" id="s-total-hv">0</div><div class="s-card-label">Hombre vivo pendiente</div></div>
       <div class="s-card s-card-click" id="s-card-novedades"><div class="s-card-num" id="s-total-novedades">0</div><div class="s-card-label">Novedades</div></div>
@@ -1211,7 +1214,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       document.getElementById('g-turno-meta').textContent = t.tipoLabel;
       document.getElementById('inicio-turno-label').textContent = t.tipoLabel;
       document.getElementById('inicio-turno-sitio').textContent = t.sitio;
-      document.getElementById('inicio-turno-horario').textContent = `Horario: ${t.inicio}–${t.fin}`;
+      document.getElementById('inicio-turno-horario').textContent = `${fechaLegibleHoy()} · Horario: ${t.inicio}–${t.fin}`;
       actualizarDatalistGuardias();
       return;
     }
@@ -1289,14 +1292,20 @@ svg.leaflet-image-layer.leaflet-interactive path {
   }
 
   // ===================== RENDER: SUPERVISOR VIEW =====================
+  function fechaLegibleHoy(){
+    return new Date().toLocaleDateString('es-BO', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  }
+
   function renderSupervisor(){
+    document.getElementById('s-fecha-hoy').textContent = fechaLegibleHoy();
+
     let totalSOS=0, totalHV=0;
     turnos.forEach(t=>{
       if(t.sos) totalSOS++;
       if(t.hvPendiente) totalHV++;
     });
 
-    document.getElementById('s-total-turnos').textContent = turnos.length;
+    document.getElementById('s-total-instalaciones').textContent = nombresInstalaciones().length;
     document.getElementById('s-total-sos').textContent = totalSOS;
     document.getElementById('s-total-hv').textContent = totalHV;
     document.getElementById('s-total-novedades').textContent = novedadesGuardadas.length;
@@ -1373,12 +1382,43 @@ svg.leaflet-image-layer.leaflet-interactive path {
         // 3. Novedades
         const novedadesDelSitio = novedadesGuardadas.filter(n=>n.sitio === sitio);
         const secNovedades = document.createElement('div');
-        secNovedades.innerHTML = `<div class="instalacion-section-title">Novedades</div>` + (novedadesDelSitio.length
-          ? novedadesDelSitio.slice(0,5).map(n=>{
-              const resumen = n.descripcion.length > 70 ? n.descripcion.slice(0,70)+'…' : n.descripcion;
-              return `<div class="instalacion-line"><strong>${n.categoria}</strong> — ${n.guardia}: ${resumen}</div>`;
-            }).join('')
-          : `<div class="instalacion-line muted">Sin novedades registradas.</div>`);
+        const tituloNov = document.createElement('div');
+        tituloNov.className = 'instalacion-section-title';
+        tituloNov.textContent = 'Novedades';
+        secNovedades.appendChild(tituloNov);
+
+        if(novedadesDelSitio.length === 0){
+          const vacio = document.createElement('div');
+          vacio.className = 'instalacion-line muted';
+          vacio.textContent = 'Sin novedades registradas.';
+          secNovedades.appendChild(vacio);
+        } else {
+          novedadesDelSitio.slice(0,5).forEach(n=>{
+            const item = document.createElement('div');
+            item.className = 'instalacion-novedad-item';
+            const resumen = n.descripcion.length > 90 ? n.descripcion.slice(0,90)+'…' : n.descripcion;
+            item.innerHTML = `
+              <div class="instalacion-line"><strong>${n.categoria}</strong> — ${n.guardia} · ${n.fecha} ${n.hora}</div>
+              <div class="instalacion-line" style="padding-top:0; color:#4b5563;">${resumen}</div>
+            `;
+            if(n.adjuntos && n.adjuntos.length){
+              const media = document.createElement('div');
+              media.className = 'novedad-media';
+              n.adjuntos.forEach(a=>{
+                const thumb = document.createElement('div');
+                thumb.className = 'media-thumb';
+                thumb.innerHTML = a.tipo==='foto' ? `<img src="${a.url}" alt="foto novedad">` : `<video src="${a.url}" muted controls></video>`;
+                const tag = document.createElement('span');
+                tag.className = 'media-tag';
+                tag.textContent = a.tipo==='foto' ? 'FOTO' : 'VIDEO';
+                thumb.appendChild(tag);
+                media.appendChild(thumb);
+              });
+              item.appendChild(media);
+            }
+            secNovedades.appendChild(item);
+          });
+        }
         body.appendChild(secNovedades);
 
         // 4. Hombre Vivo activo
@@ -1405,24 +1445,34 @@ svg.leaflet-image-layer.leaflet-interactive path {
   }
 
   // ===================== TARJETAS RESUMEN TOCABLES =====================
-  let summaryDetailAbierto = null; // 'sos' | 'hv' | 'novedades' | null
+  let summaryDetailAbierto = null; // 'instalaciones' | 'sos' | 'hv' | 'novedades' | null
 
   function toggleSummaryDetail(tipo){
     summaryDetailAbierto = (summaryDetailAbierto === tipo) ? null : tipo;
     renderSummaryDetail();
   }
+  document.getElementById('s-card-instalaciones').onclick = ()=> toggleSummaryDetail('instalaciones');
   document.getElementById('s-card-sos').onclick = ()=> toggleSummaryDetail('sos');
   document.getElementById('s-card-hv').onclick = ()=> toggleSummaryDetail('hv');
   document.getElementById('s-card-novedades').onclick = ()=> toggleSummaryDetail('novedades');
 
   function renderSummaryDetail(){
     const panel = document.getElementById('s-summary-detail');
-    ['s-card-sos','s-card-hv','s-card-novedades'].forEach(id=>document.getElementById(id).classList.remove('open'));
+    ['s-card-instalaciones','s-card-sos','s-card-hv','s-card-novedades'].forEach(id=>document.getElementById(id).classList.remove('open'));
     if(!summaryDetailAbierto){ panel.style.display='none'; panel.innerHTML=''; return; }
     document.getElementById('s-card-'+summaryDetailAbierto).classList.add('open');
     panel.style.display = 'block';
 
-    if(summaryDetailAbierto === 'sos'){
+    if(summaryDetailAbierto === 'instalaciones'){
+      const nombres = nombresInstalaciones();
+      panel.innerHTML = `<div class="s-summary-detail-title">Clientes usando CSP Control:</div>` + (nombres.length
+        ? nombres.map(sitio=>{
+            const turnosDelSitio = turnos.filter(t=>t.sitio===sitio);
+            const enTurno = turnosDelSitio.filter(t=>t.iniciado).length;
+            return `<div class="s-summary-detail-item"><strong>${sitio}</strong><span>${enTurno} guardia(s) en turno ahora</span></div>`;
+          }).join('')
+        : `<div class="s-summary-detail-empty">Ninguna instalación registrada todavía.</div>`);
+    } else if(summaryDetailAbierto === 'sos'){
       const afectados = turnos.filter(t=>t.sos);
       panel.innerHTML = `<div class="s-summary-detail-title">SOS activo en:</div>` + (afectados.length
         ? afectados.map(t=>`<div class="s-summary-detail-item"><strong>${t.sitio}</strong><span>${t.tipoLabel}${t.iniciado ? ' · '+t.guardia : ''}</span></div>`).join('')
@@ -1455,7 +1505,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       const top = document.createElement('div');
       top.className = 'novedad-top';
       top.innerHTML = `
-        <div class="novedad-meta"><strong>${n.sitio}</strong> · ${n.guardia} · min ${n.minutosTurno} del turno (sim.)</div>
+        <div class="novedad-meta"><strong>${n.sitio}</strong> · ${n.guardia} · ${n.fecha} ${n.hora}</div>
         <div class="novedad-cat-badge cat-${n.categoria}">${n.categoria}</div>
       `;
       card.appendChild(top);
@@ -1852,9 +1902,12 @@ svg.leaflet-image-layer.leaflet-interactive path {
     const desc = document.getElementById('novedad-desc').value.trim();
     const cat = document.getElementById('novedad-categoria').value;
     document.getElementById('modal-novedad').classList.remove('show');
+    const ahora = new Date();
     novedadesGuardadas.unshift({
       id: 'n'+Date.now(), turnoId: t.id, sitio: t.sitio, guardia: t.guardia,
       categoria: cat, descripcion: desc || '(sin descripción)',
+      fecha: ahora.toLocaleDateString('es-BO'),
+      hora: ahora.toLocaleTimeString('es-BO', {hour:'2-digit', minute:'2-digit'}),
       minutosTurno: t._minutosTranscurridos, adjuntos: novedadAdjuntos.slice()
     });
     const nFotos = novedadAdjuntos.filter(a=>a.tipo==='foto').length;
