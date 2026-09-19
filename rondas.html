@@ -1,0 +1,1544 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>CSP Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* required styles */
+
+.leaflet-pane,
+.leaflet-tile,
+.leaflet-marker-icon,
+.leaflet-marker-shadow,
+.leaflet-tile-container,
+.leaflet-pane > svg,
+.leaflet-pane > canvas,
+.leaflet-zoom-box,
+.leaflet-image-layer,
+.leaflet-layer {
+	position: absolute;
+	left: 0;
+	top: 0;
+	}
+.leaflet-container {
+	overflow: hidden;
+	}
+.leaflet-tile,
+.leaflet-marker-icon,
+.leaflet-marker-shadow {
+	-webkit-user-select: none;
+	   -moz-user-select: none;
+	        user-select: none;
+	  -webkit-user-drag: none;
+	}
+/* Prevents IE11 from highlighting tiles in blue */
+.leaflet-tile::selection {
+	background: transparent;
+}
+/* Safari renders non-retina tile on retina better with this, but Chrome is worse */
+.leaflet-safari .leaflet-tile {
+	image-rendering: -webkit-optimize-contrast;
+	}
+/* hack that prevents hw layers "stretching" when loading new tiles */
+.leaflet-safari .leaflet-tile-container {
+	width: 1600px;
+	height: 1600px;
+	-webkit-transform-origin: 0 0;
+	}
+.leaflet-marker-icon,
+.leaflet-marker-shadow {
+	display: block;
+	}
+/* .leaflet-container svg: reset svg max-width decleration shipped in Joomla! (joomla.org) 3.x */
+/* .leaflet-container img: map is broken in FF if you have max-width: 100% on tiles */
+.leaflet-container .leaflet-overlay-pane svg {
+	max-width: none !important;
+	max-height: none !important;
+	}
+.leaflet-container .leaflet-marker-pane img,
+.leaflet-container .leaflet-shadow-pane img,
+.leaflet-container .leaflet-tile-pane img,
+.leaflet-container img.leaflet-image-layer,
+.leaflet-container .leaflet-tile {
+	max-width: none !important;
+	max-height: none !important;
+	width: auto;
+	padding: 0;
+	}
+
+.leaflet-container img.leaflet-tile {
+	/* See: https://bugs.chromium.org/p/chromium/issues/detail?id=600120 */
+	mix-blend-mode: plus-lighter;
+}
+
+.leaflet-container.leaflet-touch-zoom {
+	-ms-touch-action: pan-x pan-y;
+	touch-action: pan-x pan-y;
+	}
+.leaflet-container.leaflet-touch-drag {
+	-ms-touch-action: pinch-zoom;
+	/* Fallback for FF which doesn't support pinch-zoom */
+	touch-action: none;
+	touch-action: pinch-zoom;
+}
+.leaflet-container.leaflet-touch-drag.leaflet-touch-zoom {
+	-ms-touch-action: none;
+	touch-action: none;
+}
+.leaflet-container {
+	-webkit-tap-highlight-color: transparent;
+}
+.leaflet-container a {
+	-webkit-tap-highlight-color: rgba(51, 181, 229, 0.4);
+}
+.leaflet-tile {
+	filter: inherit;
+	visibility: hidden;
+	}
+.leaflet-tile-loaded {
+	visibility: inherit;
+	}
+.leaflet-zoom-box {
+	width: 0;
+	height: 0;
+	-moz-box-sizing: border-box;
+	     box-sizing: border-box;
+	z-index: 800;
+	}
+/* workaround for https://bugzilla.mozilla.org/show_bug.cgi?id=888319 */
+.leaflet-overlay-pane svg {
+	-moz-user-select: none;
+	}
+
+.leaflet-pane         { z-index: 400; }
+
+.leaflet-tile-pane    { z-index: 200; }
+.leaflet-overlay-pane { z-index: 400; }
+.leaflet-shadow-pane  { z-index: 500; }
+.leaflet-marker-pane  { z-index: 600; }
+.leaflet-tooltip-pane   { z-index: 650; }
+.leaflet-popup-pane   { z-index: 700; }
+
+.leaflet-map-pane canvas { z-index: 100; }
+.leaflet-map-pane svg    { z-index: 200; }
+
+.leaflet-vml-shape {
+	width: 1px;
+	height: 1px;
+	}
+.lvml {
+	behavior: url(#default#VML);
+	display: inline-block;
+	position: absolute;
+	}
+
+
+/* control positioning */
+
+.leaflet-control {
+	position: relative;
+	z-index: 800;
+	pointer-events: visiblePainted; /* IE 9-10 doesn't have auto */
+	pointer-events: auto;
+	}
+.leaflet-top,
+.leaflet-bottom {
+	position: absolute;
+	z-index: 1000;
+	pointer-events: none;
+	}
+.leaflet-top {
+	top: 0;
+	}
+.leaflet-right {
+	right: 0;
+	}
+.leaflet-bottom {
+	bottom: 0;
+	}
+.leaflet-left {
+	left: 0;
+	}
+.leaflet-control {
+	float: left;
+	clear: both;
+	}
+.leaflet-right .leaflet-control {
+	float: right;
+	}
+.leaflet-top .leaflet-control {
+	margin-top: 10px;
+	}
+.leaflet-bottom .leaflet-control {
+	margin-bottom: 10px;
+	}
+.leaflet-left .leaflet-control {
+	margin-left: 10px;
+	}
+.leaflet-right .leaflet-control {
+	margin-right: 10px;
+	}
+
+
+/* zoom and fade animations */
+
+.leaflet-fade-anim .leaflet-popup {
+	opacity: 0;
+	-webkit-transition: opacity 0.2s linear;
+	   -moz-transition: opacity 0.2s linear;
+	        transition: opacity 0.2s linear;
+	}
+.leaflet-fade-anim .leaflet-map-pane .leaflet-popup {
+	opacity: 1;
+	}
+.leaflet-zoom-animated {
+	-webkit-transform-origin: 0 0;
+	    -ms-transform-origin: 0 0;
+	        transform-origin: 0 0;
+	}
+svg.leaflet-zoom-animated {
+	will-change: transform;
+}
+
+.leaflet-zoom-anim .leaflet-zoom-animated {
+	-webkit-transition: -webkit-transform 0.25s cubic-bezier(0,0,0.25,1);
+	   -moz-transition:    -moz-transform 0.25s cubic-bezier(0,0,0.25,1);
+	        transition:         transform 0.25s cubic-bezier(0,0,0.25,1);
+	}
+.leaflet-zoom-anim .leaflet-tile,
+.leaflet-pan-anim .leaflet-tile {
+	-webkit-transition: none;
+	   -moz-transition: none;
+	        transition: none;
+	}
+
+.leaflet-zoom-anim .leaflet-zoom-hide {
+	visibility: hidden;
+	}
+
+
+/* cursors */
+
+.leaflet-interactive {
+	cursor: pointer;
+	}
+.leaflet-grab {
+	cursor: -webkit-grab;
+	cursor:    -moz-grab;
+	cursor:         grab;
+	}
+.leaflet-crosshair,
+.leaflet-crosshair .leaflet-interactive {
+	cursor: crosshair;
+	}
+.leaflet-popup-pane,
+.leaflet-control {
+	cursor: auto;
+	}
+.leaflet-dragging .leaflet-grab,
+.leaflet-dragging .leaflet-grab .leaflet-interactive,
+.leaflet-dragging .leaflet-marker-draggable {
+	cursor: move;
+	cursor: -webkit-grabbing;
+	cursor:    -moz-grabbing;
+	cursor:         grabbing;
+	}
+
+/* marker & overlays interactivity */
+.leaflet-marker-icon,
+.leaflet-marker-shadow,
+.leaflet-image-layer,
+.leaflet-pane > svg path,
+.leaflet-tile-container {
+	pointer-events: none;
+	}
+
+.leaflet-marker-icon.leaflet-interactive,
+.leaflet-image-layer.leaflet-interactive,
+.leaflet-pane > svg path.leaflet-interactive,
+svg.leaflet-image-layer.leaflet-interactive path {
+	pointer-events: visiblePainted; /* IE 9-10 doesn't have auto */
+	pointer-events: auto;
+	}
+
+/* visual tweaks */
+
+.leaflet-container {
+	background: #ddd;
+	outline-offset: 1px;
+	}
+.leaflet-container a {
+	color: #0078A8;
+	}
+.leaflet-zoom-box {
+	border: 2px dotted #38f;
+	background: rgba(255,255,255,0.5);
+	}
+
+
+/* general typography */
+.leaflet-container {
+	font-family: "Helvetica Neue", Arial, Helvetica, sans-serif;
+	font-size: 12px;
+	font-size: 0.75rem;
+	line-height: 1.5;
+	}
+
+
+/* general toolbar styles */
+
+.leaflet-bar {
+	box-shadow: 0 1px 5px rgba(0,0,0,0.65);
+	border-radius: 4px;
+	}
+.leaflet-bar a {
+	background-color: #fff;
+	border-bottom: 1px solid #ccc;
+	width: 26px;
+	height: 26px;
+	line-height: 26px;
+	display: block;
+	text-align: center;
+	text-decoration: none;
+	color: black;
+	}
+.leaflet-bar a,
+.leaflet-control-layers-toggle {
+	background-position: 50% 50%;
+	background-repeat: no-repeat;
+	display: block;
+	}
+.leaflet-bar a:hover,
+.leaflet-bar a:focus {
+	background-color: #f4f4f4;
+	}
+.leaflet-bar a:first-child {
+	border-top-left-radius: 4px;
+	border-top-right-radius: 4px;
+	}
+.leaflet-bar a:last-child {
+	border-bottom-left-radius: 4px;
+	border-bottom-right-radius: 4px;
+	border-bottom: none;
+	}
+.leaflet-bar a.leaflet-disabled {
+	cursor: default;
+	background-color: #f4f4f4;
+	color: #bbb;
+	}
+
+.leaflet-touch .leaflet-bar a {
+	width: 30px;
+	height: 30px;
+	line-height: 30px;
+	}
+.leaflet-touch .leaflet-bar a:first-child {
+	border-top-left-radius: 2px;
+	border-top-right-radius: 2px;
+	}
+.leaflet-touch .leaflet-bar a:last-child {
+	border-bottom-left-radius: 2px;
+	border-bottom-right-radius: 2px;
+	}
+
+/* zoom control */
+
+.leaflet-control-zoom-in,
+.leaflet-control-zoom-out {
+	font: bold 18px 'Lucida Console', Monaco, monospace;
+	text-indent: 1px;
+	}
+
+.leaflet-touch .leaflet-control-zoom-in, .leaflet-touch .leaflet-control-zoom-out  {
+	font-size: 22px;
+	}
+
+
+/* layers control */
+
+.leaflet-control-layers {
+	box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+	background: #fff;
+	border-radius: 5px;
+	}
+.leaflet-control-layers-toggle {
+	background-image: url(images/layers.png);
+	width: 36px;
+	height: 36px;
+	}
+.leaflet-retina .leaflet-control-layers-toggle {
+	background-image: url(images/layers-2x.png);
+	background-size: 26px 26px;
+	}
+.leaflet-touch .leaflet-control-layers-toggle {
+	width: 44px;
+	height: 44px;
+	}
+.leaflet-control-layers .leaflet-control-layers-list,
+.leaflet-control-layers-expanded .leaflet-control-layers-toggle {
+	display: none;
+	}
+.leaflet-control-layers-expanded .leaflet-control-layers-list {
+	display: block;
+	position: relative;
+	}
+.leaflet-control-layers-expanded {
+	padding: 6px 10px 6px 6px;
+	color: #333;
+	background: #fff;
+	}
+.leaflet-control-layers-scrollbar {
+	overflow-y: scroll;
+	overflow-x: hidden;
+	padding-right: 5px;
+	}
+.leaflet-control-layers-selector {
+	margin-top: 2px;
+	position: relative;
+	top: 1px;
+	}
+.leaflet-control-layers label {
+	display: block;
+	font-size: 13px;
+	font-size: 1.08333em;
+	}
+.leaflet-control-layers-separator {
+	height: 0;
+	border-top: 1px solid #ddd;
+	margin: 5px -10px 5px -6px;
+	}
+
+/* Default icon URLs */
+.leaflet-default-icon-path { /* used only in path-guessing heuristic, see L.Icon.Default */
+	background-image: url(images/marker-icon.png);
+	}
+
+
+/* attribution and scale controls */
+
+.leaflet-container .leaflet-control-attribution {
+	background: #fff;
+	background: rgba(255, 255, 255, 0.8);
+	margin: 0;
+	}
+.leaflet-control-attribution,
+.leaflet-control-scale-line {
+	padding: 0 5px;
+	color: #333;
+	line-height: 1.4;
+	}
+.leaflet-control-attribution a {
+	text-decoration: none;
+	}
+.leaflet-control-attribution a:hover,
+.leaflet-control-attribution a:focus {
+	text-decoration: underline;
+	}
+.leaflet-attribution-flag {
+	display: inline !important;
+	vertical-align: baseline !important;
+	width: 1em;
+	height: 0.6669em;
+	}
+.leaflet-left .leaflet-control-scale {
+	margin-left: 5px;
+	}
+.leaflet-bottom .leaflet-control-scale {
+	margin-bottom: 5px;
+	}
+.leaflet-control-scale-line {
+	border: 2px solid #777;
+	border-top: none;
+	line-height: 1.1;
+	padding: 2px 5px 1px;
+	white-space: nowrap;
+	-moz-box-sizing: border-box;
+	     box-sizing: border-box;
+	background: rgba(255, 255, 255, 0.8);
+	text-shadow: 1px 1px #fff;
+	}
+.leaflet-control-scale-line:not(:first-child) {
+	border-top: 2px solid #777;
+	border-bottom: none;
+	margin-top: -2px;
+	}
+.leaflet-control-scale-line:not(:first-child):not(:last-child) {
+	border-bottom: 2px solid #777;
+	}
+
+.leaflet-touch .leaflet-control-attribution,
+.leaflet-touch .leaflet-control-layers,
+.leaflet-touch .leaflet-bar {
+	box-shadow: none;
+	}
+.leaflet-touch .leaflet-control-layers,
+.leaflet-touch .leaflet-bar {
+	border: 2px solid rgba(0,0,0,0.2);
+	background-clip: padding-box;
+	}
+
+
+/* popup */
+
+.leaflet-popup {
+	position: absolute;
+	text-align: center;
+	margin-bottom: 20px;
+	}
+.leaflet-popup-content-wrapper {
+	padding: 1px;
+	text-align: left;
+	border-radius: 12px;
+	}
+.leaflet-popup-content {
+	margin: 13px 24px 13px 20px;
+	line-height: 1.3;
+	font-size: 13px;
+	font-size: 1.08333em;
+	min-height: 1px;
+	}
+.leaflet-popup-content p {
+	margin: 17px 0;
+	margin: 1.3em 0;
+	}
+.leaflet-popup-tip-container {
+	width: 40px;
+	height: 20px;
+	position: absolute;
+	left: 50%;
+	margin-top: -1px;
+	margin-left: -20px;
+	overflow: hidden;
+	pointer-events: none;
+	}
+.leaflet-popup-tip {
+	width: 17px;
+	height: 17px;
+	padding: 1px;
+
+	margin: -10px auto 0;
+	pointer-events: auto;
+
+	-webkit-transform: rotate(45deg);
+	   -moz-transform: rotate(45deg);
+	    -ms-transform: rotate(45deg);
+	        transform: rotate(45deg);
+	}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+	background: white;
+	color: #333;
+	box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+	}
+.leaflet-container a.leaflet-popup-close-button {
+	position: absolute;
+	top: 0;
+	right: 0;
+	border: none;
+	text-align: center;
+	width: 24px;
+	height: 24px;
+	font: 16px/24px Tahoma, Verdana, sans-serif;
+	color: #757575;
+	text-decoration: none;
+	background: transparent;
+	}
+.leaflet-container a.leaflet-popup-close-button:hover,
+.leaflet-container a.leaflet-popup-close-button:focus {
+	color: #585858;
+	}
+.leaflet-popup-scrolled {
+	overflow: auto;
+	}
+
+.leaflet-oldie .leaflet-popup-content-wrapper {
+	-ms-zoom: 1;
+	}
+.leaflet-oldie .leaflet-popup-tip {
+	width: 24px;
+	margin: 0 auto;
+
+	-ms-filter: "progid:DXImageTransform.Microsoft.Matrix(M11=0.70710678, M12=0.70710678, M21=-0.70710678, M22=0.70710678)";
+	filter: progid:DXImageTransform.Microsoft.Matrix(M11=0.70710678, M12=0.70710678, M21=-0.70710678, M22=0.70710678);
+	}
+
+.leaflet-oldie .leaflet-control-zoom,
+.leaflet-oldie .leaflet-control-layers,
+.leaflet-oldie .leaflet-popup-content-wrapper,
+.leaflet-oldie .leaflet-popup-tip {
+	border: 1px solid #999;
+	}
+
+
+/* div icon */
+
+.leaflet-div-icon {
+	background: #fff;
+	border: 1px solid #666;
+	}
+
+
+/* Tooltip */
+/* Base styles for the element that has a tooltip */
+.leaflet-tooltip {
+	position: absolute;
+	padding: 6px;
+	background-color: #fff;
+	border: 1px solid #fff;
+	border-radius: 3px;
+	color: #222;
+	white-space: nowrap;
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+	pointer-events: none;
+	box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+	}
+.leaflet-tooltip.leaflet-interactive {
+	cursor: pointer;
+	pointer-events: auto;
+	}
+.leaflet-tooltip-top:before,
+.leaflet-tooltip-bottom:before,
+.leaflet-tooltip-left:before,
+.leaflet-tooltip-right:before {
+	position: absolute;
+	pointer-events: none;
+	border: 6px solid transparent;
+	background: transparent;
+	content: "";
+	}
+
+/* Directions */
+
+.leaflet-tooltip-bottom {
+	margin-top: 6px;
+}
+.leaflet-tooltip-top {
+	margin-top: -6px;
+}
+.leaflet-tooltip-bottom:before,
+.leaflet-tooltip-top:before {
+	left: 50%;
+	margin-left: -6px;
+	}
+.leaflet-tooltip-top:before {
+	bottom: 0;
+	margin-bottom: -12px;
+	border-top-color: #fff;
+	}
+.leaflet-tooltip-bottom:before {
+	top: 0;
+	margin-top: -12px;
+	margin-left: -6px;
+	border-bottom-color: #fff;
+	}
+.leaflet-tooltip-left {
+	margin-left: -6px;
+}
+.leaflet-tooltip-right {
+	margin-left: 6px;
+}
+.leaflet-tooltip-left:before,
+.leaflet-tooltip-right:before {
+	top: 50%;
+	margin-top: -6px;
+	}
+.leaflet-tooltip-left:before {
+	right: 0;
+	margin-right: -12px;
+	border-left-color: #fff;
+	}
+.leaflet-tooltip-right:before {
+	left: 0;
+	margin-left: -12px;
+	border-right-color: #fff;
+	}
+
+/* Printing */
+
+@media print {
+	/* Prevent printers from removing background-images of controls. */
+	.leaflet-control {
+		-webkit-print-color-adjust: exact;
+		print-color-adjust: exact;
+		}
+	}
+
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root{
+    --navy:#0B2545;
+    --navy-deep:#071729;
+    --gold:#D4AF37;
+    --gold-soft:#E8CD70;
+    --off-white:#F5F3EE;
+    --charcoal:#12161d;
+    --ok:#2E7D5B;
+    --late:#C9A227;
+    --skip:#B3413B;
+    --line:rgba(245,243,238,0.12);
+    --line-light:rgba(11,37,69,0.12);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{ font-family:'Inter',sans-serif; background:var(--off-white); color:var(--navy); min-height:100vh; }
+  .app{ display:flex; flex-direction:column; min-height:100vh; }
+
+  .brandbar{ background:var(--navy-deep); padding:10px 20px 4px; display:flex; align-items:center; gap:8px; }
+  .brandbar .brand-name{ font-family:'Oswald',sans-serif; font-weight:700; font-size:15px; letter-spacing:0.04em; color:var(--gold); text-transform:uppercase; }
+  .brandbar .brand-dot{ width:6px; height:6px; border-radius:50%; background:var(--ok); }
+
+  .tabbar{ display:flex; background:var(--navy-deep); padding:0 10px; }
+  .tab{ flex:1; text-align:center; padding:16px 8px 14px; color:rgba(245,243,238,0.5); font-family:'Oswald',sans-serif; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; font-size:13px; cursor:pointer; border-bottom:3px solid transparent; transition:color .2s, border-color .2s; }
+  .tab.active{ color:var(--gold); border-color:var(--gold); }
+
+  /* ===== GUARD VIEW ===== */
+  #view-guardia{ display:none; flex:1; background:var(--charcoal); color:var(--off-white); }
+  #view-guardia.active{ display:flex; flex-direction:column; }
+
+  .g-header{ padding:18px 20px 14px; border-bottom:1px solid var(--line); }
+  .g-eyebrow{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.12em; color:var(--gold); text-transform:uppercase; }
+  .g-title{ font-family:'Oswald',sans-serif; font-size:22px; font-weight:600; margin-top:4px; }
+  .g-sub{ font-size:13px; color:rgba(245,243,238,0.55); margin-top:2px; }
+
+  .g-switcher{ display:flex; gap:8px; padding:12px 20px; overflow-x:auto; border-bottom:1px solid var(--line); }
+  .g-switch-btn{ flex-shrink:0; font-family:'IBM Plex Mono',monospace; font-size:11.5px; padding:6px 10px; border-radius:6px; border:1px solid var(--line); background:transparent; color:rgba(245,243,238,0.6); cursor:pointer; }
+  .g-switch-btn.active{ background:var(--gold); color:var(--navy-deep); border-color:var(--gold); font-weight:600; }
+
+  .g-note{ padding:0 20px 10px; font-size:11px; color:rgba(245,243,238,0.4); font-family:'IBM Plex Mono',monospace; line-height:1.5; }
+
+  #hv-unlock-banner{ margin:0 20px 12px; padding:10px 14px; background:rgba(212,175,55,0.12); border:1px solid rgba(212,175,55,0.4); border-radius:8px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  #hv-unlock-banner span{ font-size:12px; color:var(--gold-soft); }
+  #btn-unlock-audio{ flex-shrink:0; background:var(--gold); color:var(--navy-deep); border:none; padding:8px 14px; border-radius:6px; font-family:'Oswald',sans-serif; font-weight:600; font-size:12px; text-transform:uppercase; cursor:pointer; }
+
+  .g-stats{ display:flex; gap:10px; padding:14px 20px; }
+  .g-stat{ flex:1; background:rgba(245,243,238,0.04); border:1px solid var(--line); border-radius:10px; padding:10px 12px; text-align:center; }
+  .g-stat-num{ font-family:'Oswald',sans-serif; font-size:20px; font-weight:600; }
+  .g-stat-label{ font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:rgba(245,243,238,0.45); margin-top:2px; }
+  .g-stat.warn .g-stat-num{ color:var(--late); }
+
+  .mark-btn-wrap{ padding:6px 20px 16px; }
+  .mark-btn{ width:100%; background:var(--gold); color:var(--navy-deep); border:none; padding:18px; border-radius:14px; font-family:'Oswald',sans-serif; font-weight:700; font-size:16px; letter-spacing:0.03em; text-transform:uppercase; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; }
+  .mark-btn:active{ transform:scale(0.98); }
+  .mark-btn .ic{ font-size:20px; }
+  .mark-hint{ text-align:center; font-size:11px; color:rgba(245,243,238,0.4); margin-top:8px; font-family:'IBM Plex Mono',monospace; }
+  .mark-sim-btn{ display:block; margin:8px auto 0; background:transparent; border:1px solid var(--line); color:rgba(245,243,238,0.45); font-size:11px; padding:6px 12px; border-radius:6px; cursor:pointer; }
+
+  .path-wrap{ flex:1; overflow-y:auto; padding:6px 24px 24px; position:relative; }
+  .path-line{ position:absolute; left:34px; top:14px; bottom:24px; width:2px; background:var(--line); }
+  .punto{ position:relative; display:flex; align-items:flex-start; gap:16px; padding:12px 0; }
+  .punto-node{ width:26px; height:26px; border-radius:50%; border:2px solid var(--ok); background:var(--ok); flex-shrink:0; z-index:1; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--off-white); }
+  .punto-body{ flex:1; padding-top:2px; }
+  .punto-hora{ font-weight:600; font-size:15px; font-family:'IBM Plex Mono',monospace; }
+  .punto-meta{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:rgba(245,243,238,0.45); margin-top:2px; }
+  .punto-empty{ padding:30px 10px; text-align:center; color:rgba(245,243,238,0.35); font-size:13px; }
+
+  .g-actions{ display:flex; gap:10px; padding:14px 20px 20px; border-top:1px solid var(--line); background:var(--navy-deep); }
+  .action-btn{ flex:1; padding:14px 8px; border-radius:10px; border:none; font-family:'Oswald',sans-serif; font-weight:600; font-size:12px; letter-spacing:0.05em; text-transform:uppercase; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .action-btn .ic{ font-size:18px; }
+  .btn-sos{ background:var(--skip); color:#fff; }
+  .btn-novedad{ background:rgba(245,243,238,0.08); color:var(--off-white); border:1px solid var(--line); }
+  .btn-hv{ background:rgba(245,243,238,0.08); color:var(--off-white); border:1px solid var(--line); position:relative; }
+  .btn-hv.pending{ background:var(--gold); color:var(--navy-deep); animation:pulse 1.4s infinite; }
+  @keyframes pulse{ 0%{opacity:1;} 50%{opacity:0.55;} 100%{opacity:1;} }
+  .btn-sos-whatsapp{ background:#25D366; color:#fff; }
+
+  /* ===== SUPERVISOR VIEW ===== */
+  #view-supervisor{ display:none; flex:1; padding:22px 26px 40px; }
+  #view-supervisor.active{ display:block; }
+  .s-header{ margin-bottom:18px; }
+  .s-eyebrow{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.12em; color:var(--gold); text-transform:uppercase; }
+  .s-title{ font-family:'Oswald',sans-serif; font-size:26px; font-weight:600; color:var(--navy); margin-top:4px; }
+
+  .s-summary{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:22px; }
+  .s-card{ background:#fff; border:1px solid var(--line-light); border-radius:12px; padding:14px 16px; }
+  .s-card-num{ font-family:'Oswald',sans-serif; font-size:26px; font-weight:600; color:var(--navy); }
+  .s-card-label{ font-size:11.5px; color:#6b7280; text-transform:uppercase; letter-spacing:0.04em; margin-top:2px; }
+  .s-card.alert .s-card-num{ color:var(--skip); }
+
+  .s-section-title{ font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; color:var(--navy); margin:22px 0 10px; display:flex; align-items:center; gap:8px; }
+  .s-section-title::before{ content:''; width:4px; height:14px; background:var(--gold); display:inline-block; border-radius:2px; }
+
+  .s-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(300px,1fr)); gap:14px; }
+  .turno-card{ background:#fff; border:1px solid var(--line-light); border-left:4px solid var(--ok); border-radius:10px; padding:14px 16px; }
+  .turno-card.has-alert{ border-left-color:var(--skip); }
+  .turno-top{ display:flex; justify-content:space-between; align-items:flex-start; }
+  .turno-guardia{ font-weight:600; font-size:15px; }
+  .turno-sitio{ font-size:12.5px; color:#6b7280; margin-top:2px; }
+  .turno-badge{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:3px 8px; border-radius:20px; background:rgba(46,125,91,0.12); color:var(--ok); white-space:nowrap; }
+  .turno-badge.alert{ background:rgba(179,65,59,0.12); color:var(--skip); }
+  .turno-meta-row{ display:flex; justify-content:space-between; margin-top:10px; font-size:12px; color:#6b7280; font-family:'IBM Plex Mono',monospace; }
+  .turno-ultimo{ margin-top:8px; font-size:12.5px; color:var(--navy); }
+  .turno-ultimo strong{ font-family:'IBM Plex Mono',monospace; }
+  .turno-flags{ display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
+  .flag{ font-size:10.5px; padding:2px 7px; border-radius:5px; font-family:'IBM Plex Mono',monospace; }
+  .flag.idle{ background:rgba(201,162,39,0.15); color:#8a6d00; }
+  .flag.sos{ background:var(--skip); color:#fff; font-weight:600; }
+  .flag.hv{ background:var(--navy); color:#fff; }
+
+  .s-mini-timeline{ margin-top:10px; display:flex; gap:4px; flex-wrap:wrap; }
+  .s-mini-dot{ width:8px; height:8px; border-radius:50%; background:var(--ok); }
+
+  .modal-bg{ display:none; position:fixed; inset:0; background:rgba(7,23,41,0.6); align-items:flex-end; justify-content:center; z-index:50; }
+  .modal-bg.show{ display:flex; }
+  .modal{ background:var(--off-white); color:var(--navy); width:100%; max-width:480px; border-radius:16px 16px 0 0; padding:22px 22px 26px; max-height:90vh; overflow-y:auto; }
+  .modal h3{ font-family:'Oswald',sans-serif; font-size:18px; margin-bottom:4px; }
+  .modal p.hint{ font-size:12.5px; color:#6b7280; margin-bottom:14px; }
+  .modal select, .modal textarea{ width:100%; border:1px solid #d8d5cd; border-radius:8px; padding:10px 12px; font-family:'Inter',sans-serif; font-size:13.5px; margin-bottom:12px; background:#fff; }
+  .modal textarea{ min-height:80px; resize:vertical; }
+  .modal-actions{ display:flex; gap:10px; }
+  .modal-actions button{ flex:1; padding:11px; border-radius:8px; border:none; font-family:'Oswald',sans-serif; font-weight:600; font-size:12.5px; letter-spacing:0.03em; text-transform:uppercase; cursor:pointer; }
+  .m-cancel{ background:#e7e4db; color:var(--navy); }
+  .m-submit{ background:var(--navy); color:#fff; }
+
+  .media-attach{ margin-bottom:14px; }
+  .media-buttons{ display:flex; gap:10px; }
+  .media-btn{ flex:1; text-align:center; padding:12px 8px; border:1.5px dashed #c9c5b8; border-radius:10px; font-family:'Oswald',sans-serif; font-weight:600; font-size:12.5px; letter-spacing:0.03em; color:var(--navy); background:#fff; cursor:pointer; }
+  .media-hint{ font-size:11px; color:#8a8676; margin-top:8px; }
+  .media-preview{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .media-thumb{ position:relative; width:64px; height:64px; border-radius:8px; overflow:hidden; background:#e7e4db; border:1px solid var(--line-light); }
+  .media-thumb img, .media-thumb video{ width:100%; height:100%; object-fit:cover; }
+  .media-thumb .media-tag{ position:absolute; bottom:2px; left:2px; font-family:'IBM Plex Mono',monospace; font-size:8.5px; background:rgba(11,37,69,0.75); color:#fff; padding:1px 4px; border-radius:3px; }
+  .media-thumb .media-remove{ position:absolute; top:2px; right:2px; width:18px; height:18px; background:rgba(11,37,69,0.85); color:#fff; border:none; border-radius:50%; font-size:11px; line-height:1; cursor:pointer; }
+
+  .novedad-card{ background:#fff; border:1px solid var(--line-light); border-left:4px solid var(--gold); border-radius:10px; padding:14px 16px; margin-bottom:12px; }
+  .novedad-card.cat-grave{ border-left-color:var(--skip); }
+  .novedad-card.cat-moderado{ border-left-color:var(--late); }
+  .novedad-card.cat-menor{ border-left-color:#9aa5b1; }
+  .novedad-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+  .novedad-meta{ font-size:12.5px; color:#6b7280; }
+  .novedad-meta strong{ color:var(--navy); }
+  .novedad-cat-badge{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; padding:3px 9px; border-radius:20px; white-space:nowrap; }
+  .novedad-cat-badge.cat-grave{ background:rgba(179,65,59,0.12); color:var(--skip); }
+  .novedad-cat-badge.cat-moderado{ background:rgba(201,162,39,0.15); color:#8a6d00; }
+  .novedad-cat-badge.cat-menor{ background:#eef0f2; color:#6b7280; }
+  .novedad-desc{ font-size:13.5px; margin-top:8px; line-height:1.5; }
+  .novedad-media{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .novedad-media .media-thumb{ width:72px; height:72px; }
+  .novedad-empty{ color:#6b7280; font-size:13px; }
+
+  .map-controls{ display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+  .map-controls select{ padding:8px 12px; border-radius:8px; border:1px solid var(--line-light); background:#fff; font-family:'Inter',sans-serif; font-size:13px; color:var(--navy); }
+  .map-legend{ font-size:11.5px; color:#6b7280; display:flex; gap:14px; align-items:center; }
+  .map-legend .dot{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+  #ronda-map{ width:100%; height:380px; border-radius:12px; overflow:hidden; border:1px solid var(--line-light); }
+  .map-empty{ padding:40px 10px; text-align:center; color:#6b7280; font-size:13px; background:#fff; border-radius:12px; border:1px solid var(--line-light); }
+  .leaflet-popup-content{ font-family:'Inter',sans-serif; font-size:12.5px; }
+
+  .toast{ position:fixed; top:16px; left:50%; transform:translateX(-50%); background:var(--navy-deep); color:var(--gold-soft); padding:10px 18px; border-radius:8px; font-family:'IBM Plex Mono',monospace; font-size:12.5px; z-index:100; opacity:0; pointer-events:none; transition:opacity .25s, transform .25s; max-width:90vw; text-align:center; }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(4px); }
+
+  @media (max-width:640px){ .s-summary{ grid-template-columns:repeat(2,1fr); } }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="brandbar">
+    <span class="brand-dot"></span>
+    <span class="brand-name">CSP Control</span>
+  </div>
+
+  <div class="tabbar">
+    <div class="tab active" data-view="guardia">Vista Guardia</div>
+    <div class="tab" data-view="supervisor">Vista Supervisor</div>
+  </div>
+
+  <!-- ============ GUARD VIEW ============ -->
+  <div id="view-guardia" class="active">
+    <div class="g-header">
+      <div class="g-eyebrow">Turno en curso</div>
+      <div class="g-title" id="g-sitio-nombre">—</div>
+      <div class="g-sub" id="g-turno-meta">—</div>
+    </div>
+
+    <div class="g-switcher" id="g-switcher"></div>
+
+    <div class="g-note">
+      Marca tu ubicación cada vez que pases por un punto durante la ronda — no hay una ruta fija, tú decides cuándo marcar.
+    </div>
+
+    <div id="hv-unlock-banner">
+      <span>Toca para activar el sonido de las alertas en este celular</span>
+      <button id="btn-unlock-audio">🔔 Activar</button>
+    </div>
+
+    <div class="g-stats">
+      <div class="g-stat"><div class="g-stat-num" id="g-stat-puntos">0</div><div class="g-stat-label">Puntos marcados</div></div>
+      <div class="g-stat" id="g-stat-ultimo-wrap"><div class="g-stat-num" id="g-stat-ultimo">--</div><div class="g-stat-label">Desde última marca</div></div>
+      <div class="g-stat"><div class="g-stat-num" id="g-stat-hv">--</div><div class="g-stat-label">Próx. hombre vivo</div></div>
+    </div>
+
+    <div class="mark-btn-wrap">
+      <button class="mark-btn" id="btn-marcar-punto"><span class="ic">📍</span>Marcar punto aquí</button>
+      <div class="mark-hint">Registra tu ubicación GPS y la hora exacta en la bitácora</div>
+      <button class="mark-sim-btn" id="btn-marcar-sim">Simular marca (demo, sin GPS real)</button>
+    </div>
+
+    <div class="path-wrap">
+      <div class="path-line" id="path-line-el"></div>
+      <div id="puntos-list"></div>
+    </div>
+
+    <div class="g-actions">
+      <button class="action-btn btn-sos" id="btn-sos"><span class="ic">☎</span>SOS</button>
+      <button class="action-btn btn-hv" id="btn-hv"><span class="ic">◎</span>Hombre vivo</button>
+      <button class="action-btn btn-novedad" id="btn-novedad"><span class="ic">✎</span>Novedad</button>
+    </div>
+    <div class="g-actions" style="padding-top:0; border-top:none;">
+      <button class="action-btn btn-sos-whatsapp" id="btn-sos-whatsapp" style="display:none;">
+        <span class="ic">✓</span>Enviar ubicación por WhatsApp (respaldo)
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ SUPERVISOR VIEW ============ -->
+  <div id="view-supervisor">
+    <div class="s-header">
+      <div class="s-eyebrow">CSP Control · en vivo</div>
+      <div class="s-title">Operación de hoy</div>
+    </div>
+
+    <div class="s-summary">
+      <div class="s-card"><div class="s-card-num" id="s-total-turnos">0</div><div class="s-card-label">Turnos activos</div></div>
+      <div class="s-card alert"><div class="s-card-num" id="s-total-sos">0</div><div class="s-card-label">SOS activos</div></div>
+      <div class="s-card alert"><div class="s-card-num" id="s-total-hv">0</div><div class="s-card-label">Hombre vivo pendiente</div></div>
+      <div class="s-card alert"><div class="s-card-num" id="s-total-idle">0</div><div class="s-card-label">Sin marcar +15 min</div></div>
+    </div>
+
+    <div class="s-section-title">Turnos con excepciones</div>
+    <div class="s-grid" id="s-grid-alert"></div>
+
+    <div class="s-section-title">Todos los turnos</div>
+    <div class="s-grid" id="s-grid-all"></div>
+
+    <div class="s-section-title">Mapa de rondas</div>
+    <div class="map-controls">
+      <select id="map-turno-select"></select>
+      <span id="map-puntos-count" style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#6b7280;"></span>
+      <div class="map-legend">
+        <span><span class="dot" style="background:#2E7D5B;"></span>Punto marcado</span>
+        <span><span class="dot" style="background:#D4AF37;"></span>Más reciente</span>
+      </div>
+    </div>
+    <div id="map-debug" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:#9aa5b1; margin-bottom:8px; word-break:break-all;"></div>
+    <div id="ronda-map"></div>
+    <div id="ronda-map-empty" class="map-empty" style="display:none;">Este turno todavía no tiene puntos marcados para mostrar en el mapa.</div>
+
+    <div class="s-section-title">Novedades registradas</div>
+    <div id="s-novedades-list"></div>
+  </div>
+
+</div>
+
+<!-- Novedad modal -->
+<div class="modal-bg" id="modal-novedad">
+  <div class="modal">
+    <h3>Registrar novedad</h3>
+    <p class="hint" id="novedad-sitio-hint">Sitio: —</p>
+    <select id="novedad-categoria">
+      <option value="menor">Menor</option>
+      <option value="moderado">Moderado</option>
+      <option value="grave">Grave</option>
+    </select>
+    <textarea id="novedad-desc" placeholder="Describe lo ocurrido..."></textarea>
+
+    <div class="media-attach">
+      <div class="media-buttons">
+        <label class="media-btn">
+          📷 Foto
+          <input type="file" id="novedad-foto-input" accept="image/*" capture="environment" hidden>
+        </label>
+        <label class="media-btn">
+          🎥 Video
+          <input type="file" id="novedad-video-input" accept="video/*" capture="environment" hidden>
+        </label>
+      </div>
+      <div id="media-preview" class="media-preview"></div>
+      <p class="media-hint">Los videos se recomiendan cortos (máx. 30-60 seg) para que suban rápido con datos móviles.</p>
+    </div>
+
+    <div class="modal-actions">
+      <button class="m-cancel" id="novedad-cancel">Cancelar</button>
+      <button class="m-submit" id="novedad-submit">Guardar novedad</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ===================== DATA MODEL (simulado en memoria) =====================
+  // Ya NO hay checkpoints predefinidos. Cada turno acumula "puntos" libres:
+  // el guardia marca cuándo y dónde estuvo, sin una ruta fija que cumplir.
+  const turnos = [
+    { id:'t1', guardia:'R. Fernández', sitio:'Condominio Stone IV', inicio:'20:00', fin:'06:00', puntos:[], sos:false, hvPendiente:false, _hvSegundosRestantes:0 },
+    { id:'t2', guardia:'J. Quispe', sitio:'Tres Carabelas', inicio:'20:00', fin:'06:00', puntos:[], sos:false, hvPendiente:false, _hvSegundosRestantes:0 },
+    { id:'t3', guardia:'M. Aguilar', sitio:'Planta Industrial Norte', inicio:'20:00', fin:'06:00', puntos:[], sos:true, hvPendiente:false, _hvSegundosRestantes:0 },
+    { id:'t4', guardia:'Modo prueba', sitio:'Oficina CSP — Nicolás Ortiz 382', inicio:'—', fin:'—', puntos:[], sos:false, hvPendiente:false, _hvSegundosRestantes:0 },
+  ];
+
+  turnos.forEach(t=>{ t._minutosTranscurridos = 0; });
+
+  let turnoActivoId = 't4';
+
+  const CONTACTO_SOS = '59176324887';
+
+  let posicionSimulada = { lat:-17.7695845, lng:-63.1991764, precision_m:8 };
+
+  function turno(id){ return turnos.find(t=>t.id===id); }
+
+  setInterval(()=>{
+    turnos.forEach(t=> t._minutosTranscurridos += 1);
+    renderGuardia();
+    renderSupervisor();
+  }, 4000);
+
+  // ===================== MARCAR PUNTO =====================
+  function marcarPunto(usarSimulada){
+    const t = turno(turnoActivoId);
+    const registrar = (lat, lng, precision, esSimulado) => {
+      t.puntos.unshift({
+        id: 'p'+Date.now(),
+        minuto: t._minutosTranscurridos,
+        hora: new Date().toLocaleTimeString('es-BO', {hour:'2-digit', minute:'2-digit', second:'2-digit'}),
+        lat, lng, precision, esSimulado: !!esSimulado
+      });
+      if(esSimulado){
+        showToast(`⚠ Sin GPS real — se guardó una ubicación de referencia (revisa señal/permiso)`);
+      } else {
+        showToast(`📍 Punto registrado · min ${t._minutosTranscurridos} del turno (±${precision}m)`);
+      }
+      renderGuardia(); renderSupervisor();
+    };
+
+    if(usarSimulada){
+      registrar(posicionSimulada.lat, posicionSimulada.lng, posicionSimulada.precision_m, true);
+      return;
+    }
+    if(!navigator.geolocation){
+      registrar(posicionSimulada.lat, posicionSimulada.lng, posicionSimulada.precision_m, true);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => registrar(pos.coords.latitude, pos.coords.longitude, Math.round(pos.coords.accuracy), false),
+      err => {
+        showToast('⚠ No se pudo obtener GPS: ' + err.message + ' — intenta de nuevo en un lugar más despejado');
+        registrar(posicionSimulada.lat, posicionSimulada.lng, posicionSimulada.precision_m, true);
+      },
+      { enableHighAccuracy:true, timeout:15000, maximumAge:0 }
+    );
+  }
+  document.getElementById('btn-marcar-punto').onclick = ()=> marcarPunto(false);
+  document.getElementById('btn-marcar-sim').onclick = ()=> marcarPunto(true);
+
+  // ===================== RENDER: GUARD VIEW =====================
+  function renderSwitcher(){
+    const el = document.getElementById('g-switcher');
+    el.innerHTML = '';
+    turnos.forEach(t=>{
+      const b = document.createElement('button');
+      b.className = 'g-switch-btn' + (t.id===turnoActivoId ? ' active' : '');
+      b.textContent = t.guardia.split(' ')[0] + ' · ' + t.sitio.split(' ')[0];
+      b.onclick = ()=>{ turnoActivoId = t.id; renderGuardia(); };
+      el.appendChild(b);
+    });
+  }
+
+  function renderGuardia(){
+    renderSwitcher();
+    const t = turno(turnoActivoId);
+    document.getElementById('g-sitio-nombre').textContent = t.sitio;
+    document.getElementById('g-turno-meta').textContent = `${t.guardia} · ${t.inicio}–${t.fin} · ${t._minutosTranscurridos} min transcurridos (sim.)`;
+
+    document.getElementById('g-stat-puntos').textContent = t.puntos.length;
+    const minUltimo = t.puntos.length ? (t._minutosTranscurridos - t.puntos[0].minuto) : t._minutosTranscurridos;
+    document.getElementById('g-stat-ultimo').textContent = minUltimo + 'm';
+    document.getElementById('g-stat-ultimo-wrap').classList.toggle('warn', minUltimo >= 15);
+
+    actualizarDisplayHV(t);
+
+    const list = document.getElementById('puntos-list');
+    list.innerHTML = '';
+    if(t.puntos.length === 0){
+      list.innerHTML = '<div class="punto-empty">Todavía no marcaste ningún punto en este turno.</div>';
+      document.getElementById('path-line-el').style.display = 'none';
+    } else {
+      document.getElementById('path-line-el').style.display = 'block';
+      t.puntos.forEach((p, idx)=>{
+        const row = document.createElement('div');
+        row.className = 'punto';
+        const nodeStyle = p.esSimulado ? 'background:transparent; border:2px dashed var(--skip); color:var(--skip);' : '';
+        row.innerHTML = `
+          <div class="punto-node" style="${nodeStyle}">${t.puntos.length - idx}</div>
+          <div class="punto-body">
+            <div class="punto-hora">${p.hora}</div>
+            <div class="punto-meta">min ${p.minuto} del turno · precisión GPS ±${p.precision}m${p.esSimulado ? ' · ⚠ sin señal GPS real' : ''}</div>
+          </div>
+        `;
+        list.appendChild(row);
+      });
+    }
+  }
+
+  // ===================== RENDER: SUPERVISOR VIEW =====================
+  function renderSupervisor(){
+    let totalSOS=0, totalHV=0, totalIdle=0;
+    const alertCards=[], allCards=[];
+
+    turnos.forEach(t=>{
+      const minUltimo = t.puntos.length ? (t._minutosTranscurridos - t.puntos[0].minuto) : t._minutosTranscurridos;
+      const idle = minUltimo >= 15;
+      const hasAlert = t.sos || t.hvPendiente || idle;
+
+      if(t.sos) totalSOS++;
+      if(t.hvPendiente) totalHV++;
+      if(idle) totalIdle++;
+
+      const card = document.createElement('div');
+      card.className = 'turno-card' + (hasAlert ? ' has-alert':'');
+
+      const top = document.createElement('div');
+      top.className = 'turno-top';
+      top.innerHTML = `
+        <div>
+          <div class="turno-guardia">${t.guardia}</div>
+          <div class="turno-sitio">${t.sitio}</div>
+        </div>
+        <div class="turno-badge${hasAlert?' alert':''}">${hasAlert?'Excepción':'Normal'}</div>
+      `;
+      card.appendChild(top);
+
+      const metaRow = document.createElement('div');
+      metaRow.className = 'turno-meta-row';
+      metaRow.innerHTML = `<span>${t.puntos.length} puntos marcados</span><span>${t._minutosTranscurridos} min de turno</span>`;
+      card.appendChild(metaRow);
+
+      const ultimo = document.createElement('div');
+      ultimo.className = 'turno-ultimo';
+      ultimo.innerHTML = t.puntos.length
+        ? `Última marca: <strong>${t.puntos[0].hora}</strong> (hace ${minUltimo} min)`
+        : `Sin marcas registradas aún (${minUltimo} min de turno)`;
+      card.appendChild(ultimo);
+
+      if(t.puntos.length){
+        const mini = document.createElement('div');
+        mini.className = 's-mini-timeline';
+        t.puntos.slice(0,20).reverse().forEach(()=>{
+          const dot = document.createElement('div');
+          dot.className = 's-mini-dot';
+          mini.appendChild(dot);
+        });
+        card.appendChild(mini);
+      }
+
+      const flags = document.createElement('div');
+      flags.className = 'turno-flags';
+      if(t.sos) flags.innerHTML += `<span class="flag sos">SOS ACTIVO</span>`;
+      if(t.hvPendiente) flags.innerHTML += `<span class="flag hv">Hombre vivo sin responder</span>`;
+      if(idle) flags.innerHTML += `<span class="flag idle">Sin marcar hace ${minUltimo} min</span>`;
+      if(flags.innerHTML) card.appendChild(flags);
+
+      allCards.push(card);
+      if(hasAlert) alertCards.push(card.cloneNode(true));
+    });
+
+    document.getElementById('s-total-turnos').textContent = turnos.length;
+    document.getElementById('s-total-sos').textContent = totalSOS;
+    document.getElementById('s-total-hv').textContent = totalHV;
+    document.getElementById('s-total-idle').textContent = totalIdle;
+
+    const gridAll = document.getElementById('s-grid-all');
+    gridAll.innerHTML=''; allCards.forEach(c=>gridAll.appendChild(c));
+
+    const gridAlert = document.getElementById('s-grid-alert');
+    gridAlert.innerHTML='';
+    if(alertCards.length===0){
+      gridAlert.innerHTML = '<div style="color:#6b7280; font-size:13px;">Sin excepciones activas por el momento.</div>';
+    } else {
+      alertCards.forEach(c=>gridAlert.appendChild(c));
+    }
+
+    renderNovedades();
+    if(rondaMap && document.getElementById('view-supervisor').classList.contains('active')) renderMapa();
+  }
+
+  function renderNovedades(){
+    const wrap = document.getElementById('s-novedades-list');
+    wrap.innerHTML = '';
+    if(novedadesGuardadas.length === 0){
+      wrap.innerHTML = '<div class="novedad-empty">Aún no se registraron novedades.</div>';
+      return;
+    }
+    novedadesGuardadas.forEach(n=>{
+      const card = document.createElement('div');
+      card.className = 'novedad-card cat-'+n.categoria;
+      const top = document.createElement('div');
+      top.className = 'novedad-top';
+      top.innerHTML = `
+        <div class="novedad-meta"><strong>${n.sitio}</strong> · ${n.guardia} · min ${n.minutosTurno} del turno (sim.)</div>
+        <div class="novedad-cat-badge cat-${n.categoria}">${n.categoria}</div>
+      `;
+      card.appendChild(top);
+      const desc = document.createElement('div');
+      desc.className = 'novedad-desc';
+      desc.textContent = n.descripcion;
+      card.appendChild(desc);
+      if(n.adjuntos && n.adjuntos.length){
+        const media = document.createElement('div');
+        media.className = 'novedad-media';
+        n.adjuntos.forEach(a=>{
+          const thumb = document.createElement('div');
+          thumb.className = 'media-thumb';
+          thumb.innerHTML = a.tipo==='foto' ? `<img src="${a.url}" alt="foto novedad">` : `<video src="${a.url}" muted controls></video>`;
+          const tag = document.createElement('span');
+          tag.className = 'media-tag';
+          tag.textContent = a.tipo==='foto' ? 'FOTO' : 'VIDEO';
+          thumb.appendChild(tag);
+          media.appendChild(thumb);
+        });
+        card.appendChild(media);
+      }
+      wrap.appendChild(card);
+    });
+  }
+
+  // ===================== MAPA DE RONDAS (Leaflet + OpenStreetMap) =====================
+  let rondaMap = null;
+  let rondaMapLayer = null;
+  let mapaTurnoSeleccionado = 't4';
+
+  function inicializarMapa(){
+    // Se destruye y se vuelve a crear cada vez: así el mapa SIEMPRE se construye
+    // con el contenedor ya visible y con su tamaño real, evitando el bug de
+    // renderizador con tamaño 0x0 que ocurre al crear mapas en contenedores ocultos.
+    if(rondaMap){ rondaMap.remove(); rondaMap = null; }
+
+    rondaMap = L.map('ronda-map').setView([-17.7695845, -63.1991764], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap',
+      maxZoom: 19
+    }).addTo(rondaMap);
+    rondaMapLayer = L.layerGroup().addTo(rondaMap);
+
+    const select = document.getElementById('map-turno-select');
+    if(select.options.length === 0){
+      turnos.forEach(t=>{
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        opt.textContent = `${t.guardia} · ${t.sitio}`;
+        select.appendChild(opt);
+      });
+      select.value = mapaTurnoSeleccionado;
+      select.onchange = ()=>{ mapaTurnoSeleccionado = select.value; renderMapa(); };
+    }
+  }
+
+  function renderMapa(){
+    if(!rondaMap) return;
+    const t = turno(mapaTurnoSeleccionado);
+    rondaMapLayer.clearLayers();
+    document.getElementById('map-puntos-count').textContent = `${t.puntos.length} punto(s) en datos`;
+
+    if(!t.puntos.length){
+      document.getElementById('ronda-map').style.display = 'none';
+      document.getElementById('ronda-map-empty').style.display = 'block';
+      return;
+    }
+    document.getElementById('ronda-map').style.display = 'block';
+    document.getElementById('ronda-map-empty').style.display = 'none';
+
+    // puntos guardados como más reciente primero → orden cronológico para la línea
+    const cronologico = [...t.puntos].reverse();
+    const latlngs = cronologico.map(p=>[p.lat, p.lng]);
+
+    try{
+      L.polyline(latlngs, { color:'#0B2545', weight:3, opacity:0.6, dashArray:'6,6' }).addTo(rondaMapLayer);
+
+      cronologico.forEach((p, idx)=>{
+        const esUltimo = idx === cronologico.length - 1;
+        const color = p.esSimulado ? '#B3413B' : (esUltimo ? '#D4AF37' : '#2E7D5B');
+        const tam = esUltimo ? 20 : 16;
+        const borde = p.esSimulado ? '2.5px dashed #fff' : '2.5px solid #fff';
+        const icono = L.divIcon({
+          className: 'punto-dot-marker',
+          html: `<div style="width:${tam}px; height:${tam}px; border-radius:50%; background:${color}; border:${borde}; box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`,
+          iconSize: [tam, tam],
+          iconAnchor: [tam/2, tam/2]
+        });
+        const marker = L.marker([p.lat, p.lng], { icon: icono }).addTo(rondaMapLayer);
+        marker.bindPopup(`<strong>Punto ${idx+1}</strong><br>${p.hora}<br>min ${p.minuto} del turno<br>±${p.precision}m GPS${p.esSimulado ? '<br>⚠ sin señal GPS real' : ''}`);
+      });
+      document.getElementById('map-puntos-count').textContent = `${t.puntos.length} punto(s) en datos · ${cronologico.length} dibujado(s)`;
+
+      const centro = rondaMap.getCenter();
+      document.getElementById('map-debug').textContent =
+        `Centro mapa: ${centro.lat.toFixed(6)}, ${centro.lng.toFixed(6)} · zoom ${rondaMap.getZoom()} | `
+        + `1er punto: ${latlngs[0][0].toFixed(6)}, ${latlngs[0][1].toFixed(6)} | `
+        + `Últ. punto: ${latlngs[latlngs.length-1][0].toFixed(6)}, ${latlngs[latlngs.length-1][1].toFixed(6)}`;
+    } catch(e){
+      showToast('Error al dibujar el mapa: ' + e.message);
+      document.getElementById('map-puntos-count').textContent = `${t.puntos.length} punto(s) en datos · ERROR al dibujar`;
+    }
+
+    // Encuadre: primero intenta ajustar a todos los puntos; si algo falla
+    // (tamaño del contenedor aún no confirmado, etc.), al menos centra en el más reciente.
+    try{
+      if(latlngs.length === 1){
+        rondaMap.setView(latlngs[0], 17);
+      } else {
+        rondaMap.fitBounds(latlngs, { padding:[30,30], maxZoom:18 });
+      }
+    } catch(e){
+      rondaMap.setView(latlngs[latlngs.length-1], 16);
+      showToast('Mapa: encuadre automático falló, centrado en el último punto');
+    }
+  }
+
+  // Se inicializa al entrar a la pestaña Supervisor (Leaflet necesita el contenedor visible con tamaño real)
+  document.querySelector('.tab[data-view="supervisor"]').addEventListener('click', ()=>{
+    setTimeout(()=>{
+      inicializarMapa();
+      if(rondaMap) rondaMap.invalidateSize(); // primero: que el mapa sepa su tamaño real ya visible
+      renderMapa(); // después: recién ahí calculamos el encuadre (fitBounds) correctamente
+    }, 80);
+  });
+
+  // ===================== TABS =====================
+  document.querySelectorAll('.tab').forEach(tab=>{
+    tab.onclick = ()=>{
+      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('view-guardia').classList.remove('active');
+      document.getElementById('view-supervisor').classList.remove('active');
+      document.getElementById('view-'+tab.dataset.view).classList.add('active');
+    };
+  });
+
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'), 2600);
+  }
+
+  // ===================== SOS: llamada + WhatsApp de respaldo =====================
+  let ultimaUbicacionSOS = null;
+  document.getElementById('btn-sos').onclick = ()=>{
+    const t = turno(turnoActivoId);
+    t.sos = true;
+    renderSupervisor();
+    window.location.href = `tel:+${CONTACTO_SOS}`;
+    showToast('⚠ Llamando a central de emergencia...');
+
+    const guardarUbicacion = (lat, lng, precision) => {
+      ultimaUbicacionSOS = { lat, lng, precision };
+      document.getElementById('btn-sos-whatsapp').style.display = 'flex';
+    };
+    if(navigator.geolocation){
+      navigator.geolocation.getCurrentPosition(
+        pos => guardarUbicacion(pos.coords.latitude, pos.coords.longitude, Math.round(pos.coords.accuracy)),
+        () => guardarUbicacion(posicionSimulada.lat, posicionSimulada.lng, posicionSimulada.precision_m),
+        { enableHighAccuracy:true, timeout:5000 }
+      );
+    } else {
+      guardarUbicacion(posicionSimulada.lat, posicionSimulada.lng, posicionSimulada.precision_m);
+    }
+  };
+  document.getElementById('btn-sos-whatsapp').onclick = ()=>{
+    const t = turno(turnoActivoId);
+    if(!ultimaUbicacionSOS){ showToast('Aún calculando tu ubicación, intenta en unos segundos'); return; }
+    const { lat, lng, precision } = ultimaUbicacionSOS;
+    const mapsLink = `https://maps.google.com/?q=${lat},${lng}`;
+    const mensaje = `🆘 SOS CSP\nGuardia: ${t.guardia}\nSitio: ${t.sitio}\nUbicación: ${mapsLink}\nPrecisión GPS: ±${precision}m\nHora: ${new Date().toLocaleTimeString('es-BO')}`;
+    const url = `https://wa.me/${CONTACTO_SOS}?text=${encodeURIComponent(mensaje)}`;
+    window.open(url, '_blank');
+  };
+
+  // ===================== HOMBRE VIVO: countdown + beep + notificación =====================
+  const HV_INTERVALO_PRODUCCION_MIN = 20;
+  const HV_INTERVALO_DEMO_SEG = 25;
+  turnos.forEach(t=>{ t._hvSegundosRestantes = HV_INTERVALO_DEMO_SEG; });
+
+  let audioCtx = null;
+  let alertaHVInterval = null;
+
+  function _tocarTonos(){
+    [0, 260].forEach(delay=>{
+      setTimeout(()=>{
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.22);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.22);
+      }, delay);
+    });
+  }
+
+  function reproducirBeep(){
+    try{
+      if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if(audioCtx.state === 'suspended'){ audioCtx.resume().then(()=> _tocarTonos()); }
+      else { _tocarTonos(); }
+    } catch(e){ /* audio no disponible */ }
+    dispararNotificacionHV();
+  }
+
+  function dispararNotificacionHV(){
+    if(!('Notification' in window) || Notification.permission !== 'granted') return;
+    try{
+      const t = turno(turnoActivoId);
+      new Notification('⚠ CSP Control · Hombre Vivo', {
+        body: `${t.guardia} — confirma que estás bien`,
+        vibrate: [300,150,300,150,300],
+        tag: 'hombre-vivo',
+        requireInteraction: true
+      });
+    } catch(e){ /* no crítico */ }
+  }
+
+  function actualizarAlertaHV(){
+    const t = turno(turnoActivoId);
+    if(t.hvPendiente && !alertaHVInterval){
+      reproducirBeep();
+      alertaHVInterval = setInterval(reproducirBeep, 6000);
+    } else if(!t.hvPendiente && alertaHVInterval){
+      clearInterval(alertaHVInterval);
+      alertaHVInterval = null;
+    }
+  }
+
+  function actualizarDisplayHV(t){
+    const el = document.getElementById('g-stat-hv');
+    if(!el) return;
+    el.textContent = t.hvPendiente ? '¡Ahora!' : (t._hvSegundosRestantes + 's');
+    actualizarAlertaHV();
+    document.getElementById('btn-hv').classList.toggle('pending', !!t.hvPendiente);
+  }
+
+  document.getElementById('btn-hv').onclick = ()=>{
+    const t = turno(turnoActivoId);
+    if(t.hvPendiente){
+      t.hvPendiente = false;
+      t._hvSegundosRestantes = HV_INTERVALO_DEMO_SEG;
+      showToast('Hombre vivo confirmado ✓');
+    } else {
+      showToast(`Sin check-in pendiente — próximo en ${t._hvSegundosRestantes}s`);
+    }
+    renderGuardia(); renderSupervisor();
+  };
+
+  document.getElementById('btn-unlock-audio').onclick = ()=>{
+    try{
+      if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if(audioCtx.state === 'suspended'){ audioCtx.resume().then(()=> _tocarTonos()); }
+      else { _tocarTonos(); }
+    } catch(e){ showToast('No se pudo crear AudioContext: ' + e.message); }
+    if(navigator.vibrate) navigator.vibrate(200);
+    if('Notification' in window){
+      Notification.requestPermission().then(permiso=>{
+        showToast(permiso === 'granted'
+          ? '🔔 Notificaciones activadas — así vibrará el aviso de Hombre Vivo'
+          : 'Notificaciones bloqueadas: sin ellas, la alerta de Hombre Vivo no podrá vibrar sola');
+      });
+    } else {
+      showToast('Este navegador no soporta notificaciones');
+    }
+    document.getElementById('hv-unlock-banner').style.display = 'none';
+  };
+
+  setInterval(()=>{
+    let cambioActivo = false;
+    turnos.forEach(t=>{
+      if(t.hvPendiente) return;
+      t._hvSegundosRestantes -= 1;
+      if(t._hvSegundosRestantes <= 0){
+        t.hvPendiente = true;
+        if(t.id === turnoActivoId) cambioActivo = true;
+      }
+    });
+    if(cambioActivo) renderGuardia();
+    else actualizarDisplayHV(turno(turnoActivoId));
+    renderSupervisor();
+  }, 1000);
+
+  // ===================== NOVEDADES: foto/video + lista supervisor =====================
+  let novedadAdjuntos = [];
+  let novedadesGuardadas = [];
+
+  function agregarAdjunto(file, tipo){
+    const url = URL.createObjectURL(file);
+    novedadAdjuntos.push({ tipo, url, nombre:file.name });
+    renderMediaPreview();
+  }
+  function renderMediaPreview(){
+    const wrap = document.getElementById('media-preview');
+    wrap.innerHTML = '';
+    novedadAdjuntos.forEach((a, i)=>{
+      const thumb = document.createElement('div');
+      thumb.className = 'media-thumb';
+      thumb.innerHTML = a.tipo==='foto' ? `<img src="${a.url}" alt="foto adjunta">` : `<video src="${a.url}" muted></video>`;
+      const tag = document.createElement('span');
+      tag.className = 'media-tag';
+      tag.textContent = a.tipo==='foto' ? 'FOTO' : 'VIDEO';
+      thumb.appendChild(tag);
+      const rm = document.createElement('button');
+      rm.className = 'media-remove';
+      rm.textContent = '×';
+      rm.onclick = ()=>{ novedadAdjuntos.splice(i,1); renderMediaPreview(); };
+      thumb.appendChild(rm);
+      wrap.appendChild(thumb);
+    });
+  }
+  document.getElementById('novedad-foto-input').addEventListener('change', e=>{
+    if(e.target.files[0]) agregarAdjunto(e.target.files[0], 'foto');
+    e.target.value = '';
+  });
+  document.getElementById('novedad-video-input').addEventListener('change', e=>{
+    if(e.target.files[0]) agregarAdjunto(e.target.files[0], 'video');
+    e.target.value = '';
+  });
+
+  document.getElementById('btn-novedad').onclick = ()=>{
+    const t = turno(turnoActivoId);
+    document.getElementById('novedad-sitio-hint').textContent = 'Sitio: ' + t.sitio + ' · ' + t.guardia;
+    document.getElementById('novedad-desc').value='';
+    novedadAdjuntos = [];
+    renderMediaPreview();
+    document.getElementById('modal-novedad').classList.add('show');
+  };
+  document.getElementById('novedad-cancel').onclick = ()=>{
+    document.getElementById('modal-novedad').classList.remove('show');
+  };
+  document.getElementById('novedad-submit').onclick = ()=>{
+    const t = turno(turnoActivoId);
+    const desc = document.getElementById('novedad-desc').value.trim();
+    const cat = document.getElementById('novedad-categoria').value;
+    document.getElementById('modal-novedad').classList.remove('show');
+    novedadesGuardadas.unshift({
+      id: 'n'+Date.now(), turnoId: t.id, sitio: t.sitio, guardia: t.guardia,
+      categoria: cat, descripcion: desc || '(sin descripción)',
+      minutosTurno: t._minutosTranscurridos, adjuntos: novedadAdjuntos.slice()
+    });
+    const nFotos = novedadAdjuntos.filter(a=>a.tipo==='foto').length;
+    const nVideos = novedadAdjuntos.filter(a=>a.tipo==='video').length;
+    let extra = '';
+    if(nFotos || nVideos) extra = ` · ${nFotos} foto(s), ${nVideos} video(s)`;
+    showToast(`Novedad (${cat}) guardada${extra}`);
+    renderSupervisor();
+  };
+
+  // init
+  renderGuardia();
+  renderSupervisor();
+</script>
+</body>
+</html>
