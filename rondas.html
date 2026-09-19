@@ -799,6 +799,10 @@ svg.leaflet-image-layer.leaflet-interactive path {
   .s-summary-detail-item:first-child{ border-top:none; }
   .s-summary-detail-item strong{ display:block; color:var(--navy); }
   .s-summary-detail-item span{ color:#6b7280; font-size:12px; }
+  .s-summary-detail-item.clickable{ cursor:pointer; }
+  .s-summary-detail-item.clickable:active{ background:#f5f3ee; }
+  .instalacion-line.clickable{ cursor:pointer; text-decoration:underline; text-decoration-color:var(--line-light); text-underline-offset:3px; }
+  .instalacion-line.clickable:active{ opacity:0.7; }
   .s-summary-detail-empty{ color:#6b7280; font-size:13px; }
 
   .instalacion-card{ background:#fff; border:1px solid var(--line-light); border-radius:12px; margin-bottom:12px; overflow:hidden; }
@@ -1321,6 +1325,30 @@ svg.leaflet-image-layer.leaflet-interactive path {
   // ===================== INSTALACIONES (agrupado por sitio, tocable) =====================
   let instalacionesAbiertas = new Set();
 
+  function irAInstalacion(sitio){
+    summaryDetailAbierto = null;
+    renderSummaryDetail();
+    instalacionesAbiertas.add(sitio);
+    renderInstalaciones();
+    setTimeout(()=>{
+      document.querySelectorAll('.instalacion-nombre').forEach(el=>{
+        if(el.textContent === sitio) el.closest('.instalacion-card').scrollIntoView({behavior:'smooth', block:'start'});
+      });
+    }, 50);
+  }
+
+  function irAMapaDeRonda(turnoId, numeroRonda){
+    mapaTurnoSeleccionado = turnoId;
+    mapaRondaSeleccionada = String(numeroRonda);
+    if(!rondaMap) inicializarMapa();
+    const selectTurno = document.getElementById('map-turno-select');
+    if(selectTurno) selectTurno.value = turnoId;
+    poblarSelectorRondas();
+    renderMapa();
+    const mapEl = document.getElementById('ronda-map');
+    if(mapEl) mapEl.scrollIntoView({behavior:'smooth', block:'center'});
+  }
+
   function nombresInstalaciones(){
     const vistos = [];
     turnos.forEach(t=>{ if(!vistos.includes(t.sitio)) vistos.push(t.sitio); });
@@ -1374,16 +1402,39 @@ svg.leaflet-image-layer.leaflet-interactive path {
           : `<div class="instalacion-line muted">Ningún guardia con turno iniciado.</div>`);
         body.appendChild(secGuardia);
 
-        // 2. Rondas realizadas
+        // 2. Rondas realizadas (cada ronda individual, tocable → lleva al mapa)
         const secRondas = document.createElement('div');
-        let rondasHtml = '';
-        turnosDelSitio.forEach(t=>{
-          if(t.rondas.length === 0) return;
-          const completas = t.rondas.filter(r=>r.finMinuto !== null).length;
-          const enCurso = rondaActiva(t);
-          rondasHtml += `<div class="instalacion-line"><strong>${t.tipoLabel}:</strong> ${completas} ronda(s) completada(s)${enCurso ? ` + Ronda ${enCurso.numero} en curso` : ''}</div>`;
-        });
-        secRondas.innerHTML = `<div class="instalacion-section-title">Rondas realizadas</div>` + (rondasHtml || `<div class="instalacion-line muted">Sin rondas registradas todavía.</div>`);
+        const tituloRondas = document.createElement('div');
+        tituloRondas.className = 'instalacion-section-title';
+        tituloRondas.textContent = 'Rondas realizadas';
+        secRondas.appendChild(tituloRondas);
+
+        const hayRondas = turnosDelSitio.some(t=>t.rondas.length > 0);
+        if(!hayRondas){
+          const vacio = document.createElement('div');
+          vacio.className = 'instalacion-line muted';
+          vacio.textContent = 'Sin rondas registradas todavía.';
+          secRondas.appendChild(vacio);
+        } else {
+          turnosDelSitio.forEach(t=>{
+            if(t.rondas.length === 0) return;
+            const subtitulo = document.createElement('div');
+            subtitulo.className = 'instalacion-line';
+            subtitulo.innerHTML = `<strong>${t.tipoLabel}</strong>`;
+            secRondas.appendChild(subtitulo);
+            // más reciente primero
+            for(let i = t.rondas.length - 1; i >= 0; i--){
+              const r = t.rondas[i];
+              const linea = document.createElement('div');
+              linea.className = 'instalacion-line clickable';
+              linea.style.paddingLeft = '10px';
+              const rango = r.finMinuto === null ? 'en curso' : `${r.finMinuto - r.inicioMinuto} min`;
+              linea.textContent = `→ Ronda ${r.numero} · ${r.puntos.length} punto(s) · ${rango}`;
+              linea.onclick = ()=> irAMapaDeRonda(t.id, r.numero);
+              secRondas.appendChild(linea);
+            }
+          });
+        }
         body.appendChild(secRondas);
 
         // 3. Novedades
@@ -1472,13 +1523,27 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
     if(summaryDetailAbierto === 'instalaciones'){
       const nombres = nombresInstalaciones();
-      panel.innerHTML = `<div class="s-summary-detail-title">Clientes usando CSP Control:</div>` + (nombres.length
-        ? nombres.map(sitio=>{
-            const turnosDelSitio = turnos.filter(t=>t.sitio===sitio);
-            const enTurno = turnosDelSitio.filter(t=>t.iniciado).length;
-            return `<div class="s-summary-detail-item"><strong>${sitio}</strong><span>${enTurno} guardia(s) en turno ahora</span></div>`;
-          }).join('')
-        : `<div class="s-summary-detail-empty">Ninguna instalación registrada todavía.</div>`);
+      const titulo = document.createElement('div');
+      titulo.className = 's-summary-detail-title';
+      titulo.textContent = 'Clientes usando CSP Control:';
+      panel.innerHTML = '';
+      panel.appendChild(titulo);
+      if(nombres.length === 0){
+        const vacio = document.createElement('div');
+        vacio.className = 's-summary-detail-empty';
+        vacio.textContent = 'Ninguna instalación registrada todavía.';
+        panel.appendChild(vacio);
+      } else {
+        nombres.forEach(sitio=>{
+          const turnosDelSitio = turnos.filter(t=>t.sitio===sitio);
+          const enTurno = turnosDelSitio.filter(t=>t.iniciado).length;
+          const item = document.createElement('div');
+          item.className = 's-summary-detail-item clickable';
+          item.innerHTML = `<strong>${sitio}</strong><span>${enTurno} guardia(s) en turno ahora</span>`;
+          item.onclick = ()=> irAInstalacion(sitio);
+          panel.appendChild(item);
+        });
+      }
     } else if(summaryDetailAbierto === 'sos'){
       const afectados = turnos.filter(t=>t.sos);
       panel.innerHTML = `<div class="s-summary-detail-title">SOS activo en:</div>` + (afectados.length
