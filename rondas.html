@@ -803,11 +803,13 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
   .instalacion-card{ background:#fff; border:1px solid var(--line-light); border-radius:12px; margin-bottom:12px; overflow:hidden; }
   .instalacion-card.has-alert{ border-color:var(--skip); }
+  .instalacion-card.has-novedad{ border-color:var(--late); }
   .instalacion-header{ display:flex; justify-content:space-between; align-items:center; padding:14px 16px; cursor:pointer; }
   .instalacion-nombre{ font-family:'Oswald',sans-serif; font-weight:600; font-size:15px; color:var(--navy); }
   .instalacion-sub{ font-size:12px; color:#6b7280; margin-top:2px; }
   .instalacion-badge{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:3px 9px; border-radius:20px; background:rgba(46,125,91,0.12); color:var(--ok); white-space:nowrap; }
   .instalacion-badge.alert{ background:rgba(179,65,59,0.12); color:var(--skip); }
+  .instalacion-badge.novedad{ background:rgba(201,162,39,0.15); color:#8a6d00; }
   .instalacion-body{ padding:4px 16px 16px; border-top:1px solid var(--line-light); display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:14px; padding-top:14px; }
   .instalacion-section-title{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:0.05em; color:#9aa5b1; margin-bottom:6px; }
   .instalacion-line{ font-size:13px; padding:4px 0; color:var(--navy); }
@@ -1334,11 +1336,16 @@ svg.leaflet-image-layer.leaflet-interactive path {
       const sosActivo = turnosDelSitio.some(t=>t.sos);
       const hvActivo = turnosDelSitio.some(t=>t.hvPendiente);
       const hasAlert = sosActivo || hvActivo;
+      const tieneNovedad = !hasAlert && novedadesGuardadas.some(n=>n.sitio === sitio);
       const abierta = instalacionesAbiertas.has(sitio);
       const guardiasEnTurno = turnosDelSitio.filter(t=>t.iniciado);
 
+      const estadoClase = hasAlert ? ' has-alert' : (tieneNovedad ? ' has-novedad' : '');
+      const badgeClase = hasAlert ? ' alert' : (tieneNovedad ? ' novedad' : '');
+      const badgeTexto = hasAlert ? 'Excepción' : (tieneNovedad ? 'Con Novedad' : 'Normal');
+
       const card = document.createElement('div');
-      card.className = 'instalacion-card' + (hasAlert ? ' has-alert' : '');
+      card.className = 'instalacion-card' + estadoClase;
 
       const header = document.createElement('div');
       header.className = 'instalacion-header';
@@ -1347,7 +1354,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
           <div class="instalacion-nombre">${sitio}</div>
           <div class="instalacion-sub">${guardiasEnTurno.length} guardia(s) en turno ahora</div>
         </div>
-        <div class="instalacion-badge${hasAlert ? ' alert' : ''}">${hasAlert ? 'Excepción' : 'Normal'}</div>
+        <div class="instalacion-badge${badgeClase}">${badgeTexto}</div>
       `;
       header.onclick = ()=>{
         if(instalacionesAbiertas.has(sitio)) instalacionesAbiertas.delete(sitio);
