@@ -1111,6 +1111,16 @@ svg.leaflet-image-layer.leaflet-interactive path {
   }, 4000);
 
   // ===================== RONDAS: iniciar / marcar / finalizar =====================
+  function horaCorta(){
+    return new Date().toLocaleTimeString('es-BO', {hour:'2-digit', minute:'2-digit'});
+  }
+
+  function duracionRonda(r){
+    const finTs = r.finTimestamp || Date.now();
+    const mins = Math.max(0, Math.round((finTs - r.inicioTimestamp) / 60000));
+    return mins + ' min';
+  }
+
   function iniciarRonda(){
     const t = turno(turnoActivoId);
     if(rondaActiva(t)){ showToast('Ya hay una ronda en curso'); return; }
@@ -1118,6 +1128,10 @@ svg.leaflet-image-layer.leaflet-interactive path {
       numero: t.rondas.length + 1,
       inicioMinuto: t._minutosTranscurridos,
       finMinuto: null,
+      inicioTimestamp: Date.now(),
+      finTimestamp: null,
+      horaInicio: horaCorta(),
+      horaFin: null,
       puntos: []
     });
     showToast(`▶ Ronda ${t.rondas.length} iniciada`);
@@ -1130,6 +1144,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
     if(!r){ showToast('No hay ninguna ronda en curso'); return; }
     if(r.puntos.length === 0){ showToast('Marca al menos un punto antes de finalizar la ronda'); return; }
     r.finMinuto = t._minutosTranscurridos;
+    r.finTimestamp = Date.now();
+    r.horaFin = horaCorta();
     showToast(`✓ Ronda ${r.numero} finalizada · ${r.puntos.length} punto(s)`);
     renderGuardia(); renderSupervisor();
   }
@@ -1265,9 +1281,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
       const ronda = t.rondas[i];
       const grupo = document.createElement('div');
       grupo.className = 'ronda-group' + (ronda.finMinuto === null ? ' en-curso' : '');
-      const rango = ronda.finMinuto === null
-        ? `desde min ${ronda.inicioMinuto} · en curso`
-        : `min ${ronda.inicioMinuto} → ${ronda.finMinuto} (${ronda.finMinuto - ronda.inicioMinuto} min)`;
+      const rango = ronda.horaFin
+        ? `${ronda.horaInicio} → ${ronda.horaFin} · ${duracionRonda(ronda)}`
+        : `${ronda.horaInicio} → en curso · ${duracionRonda(ronda)}`;
       grupo.innerHTML = `
         <div class="ronda-group-header">
           <span class="ronda-group-title">Ronda ${ronda.numero}</span>
@@ -1428,8 +1444,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
               const linea = document.createElement('div');
               linea.className = 'instalacion-line clickable';
               linea.style.paddingLeft = '10px';
-              const rango = r.finMinuto === null ? 'en curso' : `${r.finMinuto - r.inicioMinuto} min`;
-              linea.textContent = `→ Ronda ${r.numero} · ${r.puntos.length} punto(s) · ${rango}`;
+              const rangoHora = r.horaFin ? `${r.horaInicio} → ${r.horaFin}` : `${r.horaInicio} → en curso`;
+              linea.textContent = `→ Ronda ${r.numero} · ${rangoHora} · ${duracionRonda(r)} · ${r.puntos.length} punto(s)`;
               linea.onclick = ()=> irAMapaDeRonda(t.id, r.numero);
               secRondas.appendChild(linea);
             }
