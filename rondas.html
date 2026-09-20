@@ -671,6 +671,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <style>
   :root{
     --navy:#0B2545;
@@ -846,6 +848,16 @@ svg.leaflet-image-layer.leaflet-interactive path {
   .instalacion-line.muted{ color:#9aa5b1; }
   .instalacion-line.alert-text{ color:var(--skip); font-weight:600; }
   .instalacion-novedad-item{ margin-bottom:12px; }
+  .obs-item-supervisor{ margin-bottom:18px; padding-bottom:18px; border-bottom:1px solid var(--line-light); }
+  .obs-item-supervisor:last-child{ border-bottom:none; margin-bottom:0; padding-bottom:0; }
+  .obs-mensaje{ font-size:13px; padding:8px 12px; border-radius:8px; margin-bottom:6px; max-width:92%; }
+  .obs-mensaje strong{ font-family:'Oswald',sans-serif; }
+  .obs-mensaje-admin{ background:#eef0f2; color:var(--navy); border-left:3px solid #9aa5b1; }
+  .obs-mensaje-csp{ background:rgba(11,37,69,0.07); color:var(--navy); border-left:3px solid var(--navy); margin-left:8%; }
+  .obs-form-respuesta{ margin-top:8px; }
+  .obs-form-respuesta textarea{ width:100%; border:1px solid #d8d5cd; border-radius:8px; padding:8px 10px; font-family:'Inter',sans-serif; font-size:13px; min-height:50px; resize:vertical; }
+  .obs-form-respuesta input{ width:100%; border:1px solid #d8d5cd; border-radius:8px; padding:8px 10px; font-family:'Inter',sans-serif; font-size:13px; }
+  .obs-form-respuesta button{ margin-top:6px; background:var(--navy); color:#fff; border:none; padding:8px 14px; border-radius:6px; font-family:'Oswald',sans-serif; font-weight:600; font-size:11.5px; text-transform:uppercase; cursor:pointer; }
   .instalacion-novedad-item:last-child{ margin-bottom:0; }
 
   .s-section-title{ font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; color:var(--navy); margin:22px 0 10px; display:flex; align-items:center; gap:8px; }
@@ -1167,6 +1179,39 @@ svg.leaflet-image-layer.leaflet-interactive path {
   // ===================== DATA MODEL (simulado en memoria) =====================
   // Ya NO hay checkpoints predefinidos. Cada turno acumula "puntos" libres:
   // el guardia marca cuándo y dónde estuvo, sin una ruta fija que cumplir.
+  // ===================== FIREBASE =====================
+  const firebaseConfig = {
+    apiKey: "AIzaSyA3NupA37Hgoj7sHExcBaKv3B8NZRlAY0M",
+    authDomain: "csp-control.firebaseapp.com",
+    databaseURL: "https://csp-control-default-rtdb.firebaseio.com",
+    projectId: "csp-control",
+    storageBucket: "csp-control.firebasestorage.app",
+    messagingSenderId: "711004592456",
+    appId: "1:711004592456:web:9942aa86bb2eacc9c2fb7d"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  // Evita que al recibir nuestro propio guardado se dispare un ciclo de guardado infinito.
+  let sincronizandoDesdeFirebase = false;
+
+  function guardarTurnos(){
+    if(sincronizandoDesdeFirebase) return;
+    db.ref('turnos').set(turnos).catch(e=>console.error('Error guardando turnos:', e));
+  }
+  function guardarNovedades(){
+    if(sincronizandoDesdeFirebase) return;
+    db.ref('novedades').set(novedadesGuardadas).catch(e=>console.error('Error guardando novedades:', e));
+  }
+  function guardarObservaciones(){
+    if(sincronizandoDesdeFirebase) return;
+    db.ref('observaciones').set(observacionesAdmin).catch(e=>console.error('Error guardando observaciones:', e));
+  }
+  function guardarHistorialGuardias(){
+    if(sincronizandoDesdeFirebase) return;
+    db.ref('historialGuardias').set(historialNombresGuardias).catch(e=>console.error('Error guardando historial:', e));
+  }
+
   const NOMBRE_SITIO_REAL = 'Condominio Jazmines del Parque II';
 
   const turnos = [
@@ -1197,6 +1242,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     if(limpio && !historialNombresGuardias.includes(limpio)){
       historialNombresGuardias.push(limpio);
       actualizarDatalistGuardias();
+      guardarHistorialGuardias();
     }
   }
   function actualizarDatalistGuardias(){
@@ -1271,7 +1317,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
       trayectoria: []
     });
     showToast(`▶ Ronda ${t.rondas.length} iniciada · ${guardiaNombre}`);
-    iniciarTrackeoAutomatico(t.rondas[t.rondas.length - 1]);
+    iniciarTrackeoAutomatico(t);
+    guardarTurnos();
     renderGuardia(); renderSupervisor();
   }
 
@@ -1280,7 +1327,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   let watchIdTrayectoria = null;
   let ultimaMuestraTrayectoria = 0;
 
-  function iniciarTrackeoAutomatico(ronda){
+  function iniciarTrackeoAutomatico(t){
     if(!navigator.geolocation) return;
     detenerTrackeoAutomatico(); // por si quedó uno corriendo
     ultimaMuestraTrayectoria = 0;
@@ -1289,7 +1336,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
         const ahora = Date.now();
         if(ahora - ultimaMuestraTrayectoria < TRACKEO_INTERVALO_MIN_MS) return;
         ultimaMuestraTrayectoria = ahora;
-        ronda.trayectoria.push({
+        const r = rondaActiva(t); // siempre la ronda vigente, nunca una referencia vieja
+        if(!r){ detenerTrackeoAutomatico(); return; }
+        r.trayectoria.push({
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           precision: Math.round(pos.coords.accuracy),
@@ -1297,6 +1346,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
         });
         if(rondaMap && document.getElementById('view-supervisor').classList.contains('active')) renderMapa();
         if(rondaMapAdmin && document.getElementById('view-administracion').classList.contains('active')) renderMapaAdmin();
+        guardarTurnos();
       },
       err => { /* si falla el rastreo automático no interrumpe la ronda — el guardia sigue marcando puntos a mano */ },
       { enableHighAccuracy:true, maximumAge:10000, timeout:20000 }
@@ -1341,6 +1391,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     r.horaFin = horaCorta();
     detenerTrackeoAutomatico();
     showToast(`✓ Ronda ${r.numero} finalizada · ${r.puntos.length} punto(s)`);
+    guardarTurnos();
     renderGuardia(); renderSupervisor();
   }
 
@@ -1362,6 +1413,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
         showToast(`📍 Ronda ${r.numero} · punto registrado (±${precision}m)`);
       }
       renderGuardia(); renderSupervisor();
+      guardarTurnos();
     };
 
     if(usarSimulada){
@@ -1428,6 +1480,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     registrarNombreEnHistorial(nombre);
     input.value = '';
     showToast(`${nombre} sumado a ${t.tipoLabel}`);
+    guardarTurnos();
     renderGuardia(); renderSupervisor();
   }
   document.getElementById('btn-agregar-guardia-extra').onclick = agregarGuardiaEnCurso;
@@ -1467,6 +1520,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
     document.getElementById('modal-eliminar-guardia').classList.remove('show');
     showToast(`${guardiaAEliminar} eliminado de ${t.tipoLabel}`);
     guardiaAEliminar = null;
+    guardarTurnos();
+    guardarNovedades();
     renderGuardia(); renderSupervisor();
   };
 
@@ -1475,6 +1530,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     if(t.guardiasPresentes.length === 0){ showToast('Agrega al menos un guardia para comenzar el turno'); return; }
     t.iniciado = true;
     showToast(`${t.tipoLabel} iniciado · ${nombreGuardias(t)}`);
+    guardarTurnos();
     renderGuardia(); renderSupervisor();
   }
   document.getElementById('btn-comenzar-turno').onclick = comenzarTurno;
@@ -1797,12 +1853,50 @@ svg.leaflet-image-layer.leaflet-interactive path {
           : `<div class="instalacion-line muted">Sin SOS activos.</div>`);
         body.appendChild(secSOS);
 
-        // 6. Observaciones de Administración
+        // 6. Observaciones de Administración — hilo de conversación completo
         const obsDelSitio = observacionesAdmin.filter(o=>o.sitio === sitio);
         const secObs = document.createElement('div');
-        secObs.innerHTML = `<div class="instalacion-section-title">Observaciones de Administración</div>` + (obsDelSitio.length
-          ? obsDelSitio.slice(0,5).map(o=>`<div class="instalacion-line"><strong>${o.autor}</strong> · ${o.fecha} ${o.hora}<br><span style="color:#4b5563;">${o.mensaje}</span></div>`).join('')
-          : `<div class="instalacion-line muted">Sin observaciones registradas.</div>`);
+        const tituloObs = document.createElement('div');
+        tituloObs.className = 'instalacion-section-title';
+        tituloObs.textContent = 'Observaciones de Administración';
+        secObs.appendChild(tituloObs);
+
+        if(obsDelSitio.length === 0){
+          const vacio = document.createElement('div');
+          vacio.className = 'instalacion-line muted';
+          vacio.textContent = 'Sin observaciones registradas.';
+          secObs.appendChild(vacio);
+        } else {
+          obsDelSitio.slice(0,5).forEach(hilo=>{
+            const item = document.createElement('div');
+            item.className = 'obs-item-supervisor';
+
+            hilo.mensajes.forEach(m=>{
+              const msg = document.createElement('div');
+              msg.className = 'obs-mensaje ' + (m.rol === 'csp' ? 'obs-mensaje-csp' : 'obs-mensaje-admin');
+              msg.innerHTML = `<strong>${m.rol === 'csp' ? 'CSP' : m.autor}</strong> · ${tiempoRelativo(m.ts, m.fecha, m.hora)}<br>${m.mensaje}`;
+              item.appendChild(msg);
+            });
+
+            const formResp = document.createElement('div');
+            formResp.className = 'obs-form-respuesta';
+            formResp.innerHTML = `
+              <textarea placeholder="Responder como CSP..."></textarea>
+              <button class="obs-enviar-respuesta">Enviar respuesta</button>
+            `;
+            formResp.querySelector('.obs-enviar-respuesta').onclick = ()=>{
+              const texto = formResp.querySelector('textarea').value.trim();
+              if(!texto){ showToast('Escribe una respuesta antes de enviar'); return; }
+              hilo.mensajes.push(crearMensajeHilo('CSP', 'csp', texto));
+              showToast('Respuesta enviada a Administración');
+              guardarObservaciones();
+              renderInstalaciones();
+              renderAdministracion();
+            };
+            item.appendChild(formResp);
+            secObs.appendChild(item);
+          });
+        }
         body.appendChild(secObs);
 
         card.appendChild(body);
@@ -1884,12 +1978,14 @@ svg.leaflet-image-layer.leaflet-interactive path {
         vacio.textContent = 'Todavía no se recibió ninguna.';
         panel.appendChild(vacio);
       } else {
-        observacionesAdmin.slice(0,6).forEach(o=>{
-          const resumen = o.mensaje.length > 90 ? o.mensaje.slice(0,90)+'…' : o.mensaje;
+        observacionesAdmin.slice(0,6).forEach(hilo=>{
+          const ultimo = hilo.mensajes[hilo.mensajes.length - 1];
+          const resumen = ultimo.mensaje.length > 90 ? ultimo.mensaje.slice(0,90)+'…' : ultimo.mensaje;
+          const estado = ultimo.rol === 'admin' ? '⏳ CSP debe responder' : '✓ al día';
           const item = document.createElement('div');
           item.className = 's-summary-detail-item clickable';
-          item.innerHTML = `<strong>${o.sitio} — ${o.autor}</strong><span>${o.fecha} ${o.hora} · ${resumen}</span>`;
-          item.onclick = ()=> irAInstalacion(o.sitio);
+          item.innerHTML = `<strong>${hilo.sitio} — ${ultimo.rol === 'csp' ? 'CSP' : ultimo.autor}</strong><span>${tiempoRelativo(ultimo.ts, ultimo.fecha, ultimo.hora)} · ${resumen} · ${estado}</span>`;
+          item.onclick = ()=> irAInstalacion(hilo.sitio);
           panel.appendChild(item);
         });
       }
@@ -1985,30 +2081,73 @@ svg.leaflet-image-layer.leaflet-interactive path {
     if(obsDelSitio.length === 0){
       wrapObs.innerHTML = `<div class="instalacion-line muted">Todavía no se registraron observaciones.</div>`;
     } else {
-      obsDelSitio.forEach(o=>{
+      obsDelSitio.forEach(hilo=>{
         const item = document.createElement('div');
         item.className = 'admin-obs-item';
-        item.innerHTML = `
-          <div class="instalacion-line"><strong>${o.autor}</strong> · ${o.fecha} ${o.hora}</div>
-          <div class="instalacion-line" style="padding-top:0; color:#4b5563;">${o.mensaje}</div>
+
+        hilo.mensajes.forEach(m=>{
+          const msg = document.createElement('div');
+          msg.className = 'obs-mensaje ' + (m.rol === 'csp' ? 'obs-mensaje-csp' : 'obs-mensaje-admin');
+          msg.innerHTML = `<strong>${m.rol === 'csp' ? 'CSP' : m.autor}</strong> · ${tiempoRelativo(m.ts, m.fecha, m.hora)}<br>${m.mensaje}`;
+          item.appendChild(msg);
+        });
+
+        const formCont = document.createElement('div');
+        formCont.className = 'obs-form-respuesta';
+        formCont.innerHTML = `
+          <input type="text" placeholder="Tu nombre..." class="obs-cont-nombre">
+          <textarea placeholder="Seguir esta conversación..." style="margin-top:6px;"></textarea>
+          <button class="obs-enviar-respuesta">Enviar</button>
         `;
+        formCont.querySelector('.obs-enviar-respuesta').onclick = ()=>{
+          const nombreCont = formCont.querySelector('.obs-cont-nombre').value.trim();
+          const texto = formCont.querySelector('textarea').value.trim();
+          if(!nombreCont || !texto){ showToast('Escribe tu nombre y el mensaje'); return; }
+          hilo.mensajes.push(crearMensajeHilo(nombreCont, 'admin', texto));
+          showToast('Mensaje enviado');
+          guardarObservaciones();
+          renderAdministracion();
+          renderSupervisor();
+        };
+        item.appendChild(formCont);
         wrapObs.appendChild(item);
       });
     }
+  }
+
+  function crearMensajeHilo(autor, rol, texto){
+    const ahora = new Date();
+    return {
+      autor, rol, mensaje: texto,
+      fecha: ahora.toLocaleDateString('es-BO'),
+      hora: ahora.toLocaleTimeString('es-BO', {hour:'2-digit', minute:'2-digit'}),
+      ts: ahora.getTime()
+    };
+  }
+
+  function tiempoRelativo(ts, fechaFallback, horaFallback){
+    if(!ts) return `${fechaFallback} ${horaFallback}`;
+    const diffMin = Math.floor((Date.now() - ts) / 60000);
+    if(diffMin < 1) return 'justo ahora';
+    if(diffMin < 60) return `hace ${diffMin} min`;
+    const diffH = Math.floor(diffMin / 60);
+    if(diffH < 24) return `hace ${diffH} h`;
+    const diffD = Math.floor(diffH / 24);
+    if(diffD < 7) return `hace ${diffD} d`;
+    return `${fechaFallback} ${horaFallback}`;
   }
 
   document.getElementById('admin-obs-enviar').onclick = ()=>{
     const nombre = document.getElementById('admin-obs-nombre').value.trim();
     const mensaje = document.getElementById('admin-obs-mensaje').value.trim();
     if(!nombre || !mensaje){ showToast('Escribe tu nombre y el mensaje antes de publicar'); return; }
-    const ahora = new Date();
     observacionesAdmin.unshift({
-      id: 'o'+Date.now(), sitio: NOMBRE_SITIO_REAL, autor: nombre, mensaje,
-      fecha: ahora.toLocaleDateString('es-BO'),
-      hora: ahora.toLocaleTimeString('es-BO', {hour:'2-digit', minute:'2-digit'})
+      id: 'o'+Date.now(), sitio: NOMBRE_SITIO_REAL,
+      mensajes: [ crearMensajeHilo(nombre, 'admin', mensaje) ]
     });
     document.getElementById('admin-obs-mensaje').value = '';
     showToast('Observación publicada');
+    guardarObservaciones();
     renderAdministracion();
     renderSupervisor();
   };
@@ -2394,6 +2533,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   document.getElementById('btn-sos').onclick = ()=>{
     const t = turno(turnoActivoId);
     t.sos = true;
+    guardarTurnos();
     renderSupervisor();
     window.location.href = `tel:+${CONTACTOS_SOS[0].numero}`;
     showToast(`⚠ Llamando a ${CONTACTOS_SOS[0].nombre}...`);
@@ -2539,6 +2679,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       t.hvPendiente = false;
       t._hvSegundosRestantes = intervaloHV(t);
       showToast('Guardia Activo confirmado ✓');
+      guardarTurnos();
     } else {
       const activo = modoPruebaActivo || dentroDeVentanaHV();
       showToast(activo ? `Sin check-in pendiente — próximo en ~${Math.ceil(t._hvSegundosRestantes/60)} min` : `Guardia Activo inactivo fuera del horario ${HV_HORA_INICIO}:00–0${HV_HORA_FIN}:00`);
@@ -2575,6 +2716,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       if(t._hvSegundosRestantes <= 0){
         t.hvPendiente = true;
         if(t.id === turnoActivoId) cambioActivo = true;
+        guardarTurnos();
       }
     });
     if(cambioActivo) renderGuardia();
@@ -2659,8 +2801,59 @@ svg.leaflet-image-layer.leaflet-interactive path {
     let extra = '';
     if(nFotos || nVideos) extra = ` · ${nFotos} foto(s), ${nVideos} video(s)`;
     showToast(`Novedad (${cat}) guardada · ${guardiaQueReporta}${extra}`);
+    guardarNovedades();
     renderSupervisor();
   };
+
+  // Escucha cambios remotos en /turnos (de cualquier dispositivo) y actualiza esta app en vivo.
+  db.ref('turnos').on('value', snap=>{
+    const datos = snap.val();
+    if(datos && Array.isArray(datos) && datos.length){
+      sincronizandoDesdeFirebase = true;
+      // Se actualizan los turnos existentes en el mismo orden/posición para no romper referencias activas.
+      datos.forEach((t, i)=>{
+        if(!turnos[i]) return;
+        Object.keys(t).forEach(k=>{ if(k !== '_minutosTranscurridos' && k !== '_hvSegundosRestantes') turnos[i][k] = t[k]; });
+      });
+      sincronizandoDesdeFirebase = false;
+      renderGuardia(); renderSupervisor();
+      if(document.getElementById('view-administracion').classList.contains('active')) renderAdministracion();
+    }
+  });
+
+  // Escucha cambios remotos en /novedades
+  db.ref('novedades').on('value', snap=>{
+    const datos = snap.val();
+    sincronizandoDesdeFirebase = true;
+    novedadesGuardadas.length = 0;
+    if(Array.isArray(datos)) datos.forEach(n=>{ if(n) novedadesGuardadas.push(n); });
+    sincronizandoDesdeFirebase = false;
+    renderSupervisor();
+    if(document.getElementById('view-administracion').classList.contains('active')) renderAdministracion();
+  });
+
+  // Escucha cambios remotos en /observaciones (hilos de conversación con Administración)
+  db.ref('observaciones').on('value', snap=>{
+    const datos = snap.val();
+    sincronizandoDesdeFirebase = true;
+    observacionesAdmin.length = 0;
+    if(Array.isArray(datos)) datos.forEach(o=>{ if(o) observacionesAdmin.push(o); });
+    sincronizandoDesdeFirebase = false;
+    renderSupervisor();
+    if(document.getElementById('view-administracion').classList.contains('active')) renderAdministracion();
+  });
+
+  // Escucha cambios remotos en /historialGuardias (autocompletado compartido entre dispositivos)
+  db.ref('historialGuardias').on('value', snap=>{
+    const datos = snap.val();
+    if(Array.isArray(datos)){
+      sincronizandoDesdeFirebase = true;
+      historialNombresGuardias.length = 0;
+      datos.forEach(n=>{ if(n) historialNombresGuardias.push(n); });
+      sincronizandoDesdeFirebase = false;
+      actualizarDatalistGuardias();
+    }
+  });
 
   // init
   renderGuardia();
