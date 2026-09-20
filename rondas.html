@@ -789,6 +789,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
   .btn-hv{ background:rgba(245,243,238,0.08); color:var(--off-white); border:1px solid var(--line); position:relative; }
   .btn-hv.pending{ background:var(--gold); color:var(--navy-deep); animation:pulse 1.4s infinite; }
   @keyframes pulse{ 0%{opacity:1;} 50%{opacity:0.55;} 100%{opacity:1;} }
+  .live-position-dot{ width:16px; height:16px; border-radius:50%; background:#1B7C9E; border:3px solid #fff; box-shadow:0 0 0 4px rgba(27,124,158,0.35); animation: livepulse 1.5s infinite; }
+  @keyframes livepulse{ 0%{ box-shadow:0 0 0 4px rgba(27,124,158,0.35); } 50%{ box-shadow:0 0 0 11px rgba(27,124,158,0.05); } 100%{ box-shadow:0 0 0 4px rgba(27,124,158,0.35); } }
   .btn-sos-whatsapp{ background:#25D366; color:#fff; }
 
   /* ===== SUPERVISOR VIEW ===== */
@@ -1029,6 +1031,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       <div class="map-legend">
         <span><span class="dot" style="background:#2E7D5B;"></span>Punto marcado</span>
         <span><span class="dot" style="background:#D4AF37;"></span>Más reciente</span>
+        <span><span class="dot" style="background:#1B7C9E;"></span>Posición en vivo</span>
       </div>
     </div>
     <div id="map-ronda-info" class="map-ronda-info" style="display:none;"></div>
@@ -1205,10 +1208,46 @@ svg.leaflet-image-layer.leaflet-interactive path {
       finTimestamp: null,
       horaInicio: horaCorta(),
       horaFin: null,
-      puntos: []
+      puntos: [],
+      trayectoria: []
     });
     showToast(`▶ Ronda ${t.rondas.length} iniciada · ${guardiaNombre}`);
+    iniciarTrackeoAutomatico(t.rondas[t.rondas.length - 1]);
     renderGuardia(); renderSupervisor();
+  }
+
+  // ===================== RASTREO AUTOMÁTICO DE FONDO (mientras hay una ronda activa) =====================
+  const TRACKEO_INTERVALO_MIN_MS = 15000; // como máximo una muestra cada ~15s
+  let watchIdTrayectoria = null;
+  let ultimaMuestraTrayectoria = 0;
+
+  function iniciarTrackeoAutomatico(ronda){
+    if(!navigator.geolocation) return;
+    detenerTrackeoAutomatico(); // por si quedó uno corriendo
+    ultimaMuestraTrayectoria = 0;
+    watchIdTrayectoria = navigator.geolocation.watchPosition(
+      pos => {
+        const ahora = Date.now();
+        if(ahora - ultimaMuestraTrayectoria < TRACKEO_INTERVALO_MIN_MS) return;
+        ultimaMuestraTrayectoria = ahora;
+        ronda.trayectoria.push({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          precision: Math.round(pos.coords.accuracy),
+          ts: ahora
+        });
+        if(rondaMap && document.getElementById('view-supervisor').classList.contains('active')) renderMapa();
+      },
+      err => { /* si falla el rastreo automático no interrumpe la ronda — el guardia sigue marcando puntos a mano */ },
+      { enableHighAccuracy:true, maximumAge:10000, timeout:20000 }
+    );
+  }
+
+  function detenerTrackeoAutomatico(){
+    if(watchIdTrayectoria !== null && navigator.geolocation){
+      navigator.geolocation.clearWatch(watchIdTrayectoria);
+      watchIdTrayectoria = null;
+    }
   }
 
   function abrirSelectorGuardiaRonda(t){
@@ -1240,6 +1279,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     r.finMinuto = t._minutosTranscurridos;
     r.finTimestamp = Date.now();
     r.horaFin = horaCorta();
+    detenerTrackeoAutomatico();
     showToast(`✓ Ronda ${r.numero} finalizada · ${r.puntos.length} punto(s)`);
     renderGuardia(); renderSupervisor();
   }
@@ -1400,7 +1440,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     renderSwitcher();
     const t = turno(turnoActivoId);
 
-    document.getElementById('g-eyebrow-turno').textContent = `Turno en curso · ${new Date().toLocaleDateString('es-BO')}`;
+    document.getElementById('g-eyebrow-turno').textContent = `Turno en curso · ${new Date().toLocaleDateString('es-BO')} · ${new Date().toLocaleTimeString('es-BO', {hour:'2-digit', minute:'2-digit'})}`;
 
     const pantallaInicio = document.getElementById('turno-inicio-pantalla');
     const contenido = document.getElementById('guardia-contenido');
@@ -1893,8 +1933,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
       ? t.rondas
       : t.rondas.filter(r => String(r.numero) === mapaRondaSeleccionada);
 
-    const totalPuntos = rondasAMostrar.reduce((acc,r)=>acc + r.puntos.length, 0);
-    document.getElementById('map-puntos-count').textContent = `${rondasAMostrar.length} ronda(s) · ${totalPuntos} punto(s)`;
+    const totalPuntosMarcados = rondasAMostrar.reduce((acc,r)=>acc + r.puntos.length, 0);
+    const totalTrayectoria = rondasAMostrar.reduce((acc,r)=>acc + (r.trayectoria ? r.trayectoria.length : 0), 0);
+    const totalPuntos = totalPuntosMarcados + totalTrayectoria;
+    document.getElementById('map-puntos-count').textContent =
+      `${rondasAMostrar.length} ronda(s) · ${totalPuntosMarcados} marcado(s)${totalTrayectoria ? ` · ${totalTrayectoria} de rastreo` : ''}`;
 
     const infoEl = document.getElementById('map-ronda-info');
     if(mapaRondaSeleccionada !== 'todas' && rondasAMostrar.length === 1){
@@ -1918,12 +1961,33 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
     try{
       rondasAMostrar.forEach((ronda, ri) => {
+        const colorLinea = mapaRondaSeleccionada === 'todas' ? PALETA_RONDAS[ri % PALETA_RONDAS.length] : '#0B2545';
+
+        // Trayectoria automática (rastreo de fondo mientras la ronda estuvo activa)
+        if(ronda.trayectoria && ronda.trayectoria.length){
+          const trLatLngs = ronda.trayectoria.map(p=>[p.lat, p.lng]);
+          todosLosLatlngs = todosLosLatlngs.concat(trLatLngs);
+          if(trLatLngs.length > 1){
+            L.polyline(trLatLngs, { color:'#1B7C9E', weight:2, opacity:0.5 }).addTo(rondaMapLayer);
+          }
+          // Posición en vivo: solo si esta ronda sigue en curso
+          if(ronda.finMinuto === null){
+            const ultima = ronda.trayectoria[ronda.trayectoria.length - 1];
+            const iconoLive = L.divIcon({
+              className: 'live-position-marker',
+              html: `<div class="live-position-dot"></div>`,
+              iconSize: [18,18], iconAnchor: [9,9]
+            });
+            L.marker([ultima.lat, ultima.lng], { icon: iconoLive }).addTo(rondaMapLayer)
+              .bindPopup(`<strong>Posición en vivo</strong><br>Ronda ${ronda.numero} · ${ronda.guardia}<br>±${ultima.precision}m GPS`);
+          }
+        }
+
         if(ronda.puntos.length === 0) return;
         const cronologico = [...ronda.puntos].reverse(); // orden cronológico dentro de ESTA ronda
         const latlngs = cronologico.map(p=>[p.lat, p.lng]);
         todosLosLatlngs = todosLosLatlngs.concat(latlngs);
 
-        const colorLinea = mapaRondaSeleccionada === 'todas' ? PALETA_RONDAS[ri % PALETA_RONDAS.length] : '#0B2545';
         if(latlngs.length > 1){
           L.polyline(latlngs, { color: colorLinea, weight:3, opacity:0.65, dashArray:'6,6' }).addTo(rondaMapLayer);
         }
