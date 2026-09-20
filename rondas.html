@@ -991,6 +991,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
         <span class="ic">✓</span>Enviar ubicación por WhatsApp (respaldo)
       </button>
     </div>
+    <div id="sos-contactos-respaldo" style="display:none; padding:0 20px 14px;"></div>
     </div>
   </div>
 
@@ -1049,6 +1050,10 @@ svg.leaflet-image-layer.leaflet-interactive path {
   <div class="modal">
     <h3>Registrar novedad</h3>
     <p class="hint" id="novedad-sitio-hint">Sitio: —</p>
+    <div id="novedad-guardia-wrap" style="display:none; margin-bottom:12px;">
+      <label style="font-size:11.5px; color:#6b7280; text-transform:uppercase; letter-spacing:0.04em; font-family:'IBM Plex Mono',monospace;">¿Quién reporta esta novedad?</label>
+      <select id="novedad-guardia-select" style="margin-top:4px;"></select>
+    </div>
     <select id="novedad-categoria">
       <option value="menor">Menor</option>
       <option value="moderado">Moderado</option>
@@ -1131,7 +1136,12 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
   let turnoActivoId = 'turno1';
 
-  const CONTACTO_SOS = '59176324887';
+  // Lista de contactos de emergencia — el primero es el que se llama automáticamente al tocar SOS.
+  // Para agregar más, solo hay que sumar objetos aquí: { nombre, numero } (numero sin '+' ni espacios).
+  const CONTACTOS_SOS = [
+    { nombre: 'Central CSP', numero: '59176324887' },
+  ];
+  const CONTACTO_SOS = CONTACTOS_SOS[0].numero; // compatibilidad con el resto del código
 
   let posicionSimulada = { lat:-17.7695845, lng:-63.1991764, precision_m:8 };
 
@@ -1615,7 +1625,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
         const sosTurnos = turnosDelSitio.filter(t=>t.sos);
         const secSOS = document.createElement('div');
         secSOS.innerHTML = `<div class="instalacion-section-title">SOS</div>` + (sosTurnos.length
-          ? sosTurnos.map(t=>`<div class="instalacion-line alert-text">🆘 Activo — ${t.tipoLabel} (${nombreGuardias(t)})</div>`).join('')
+          ? sosTurnos.map(t=>`<div class="instalacion-line alert-text">🆘 Activo — ${t.tipoLabel}</div>`).join('')
           : `<div class="instalacion-line muted">Sin SOS activos.</div>`);
         body.appendChild(secSOS);
 
@@ -1671,7 +1681,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     } else if(summaryDetailAbierto === 'sos'){
       const afectados = turnos.filter(t=>t.sos);
       panel.innerHTML = `<div class="s-summary-detail-title">SOS activo en:</div>` + (afectados.length
-        ? afectados.map(t=>`<div class="s-summary-detail-item"><strong>${t.sitio}</strong><span>${t.tipoLabel}${t.iniciado ? ' · '+nombreGuardias(t) : ''}</span></div>`).join('')
+        ? afectados.map(t=>`<div class="s-summary-detail-item"><strong>${t.sitio}</strong><span>${t.tipoLabel}</span></div>`).join('')
         : `<div class="s-summary-detail-empty">Ningún SOS activo por el momento.</div>`);
     } else if(summaryDetailAbierto === 'hv'){
       const afectados = turnos.filter(t=>t.hvPendiente);
@@ -1915,8 +1925,25 @@ svg.leaflet-image-layer.leaflet-interactive path {
     const t = turno(turnoActivoId);
     t.sos = true;
     renderSupervisor();
-    window.location.href = `tel:+${CONTACTO_SOS}`;
-    showToast('⚠ Llamando a central de emergencia...');
+    window.location.href = `tel:+${CONTACTOS_SOS[0].numero}`;
+    showToast(`⚠ Llamando a ${CONTACTOS_SOS[0].nombre}...`);
+
+    // Si hay más contactos registrados, se muestran como botones de respaldo
+    // por si el primero no contesta.
+    const wrapRespaldo = document.getElementById('sos-contactos-respaldo');
+    if(CONTACTOS_SOS.length > 1){
+      wrapRespaldo.innerHTML = '';
+      CONTACTOS_SOS.slice(1).forEach(c=>{
+        const btn = document.createElement('button');
+        btn.className = 'action-btn btn-sos';
+        btn.style.width = '100%';
+        btn.style.marginBottom = '8px';
+        btn.innerHTML = `<span class="ic">☎</span>Llamar a ${c.nombre} (respaldo)`;
+        btn.onclick = ()=>{ window.location.href = `tel:+${c.numero}`; };
+        wrapRespaldo.appendChild(btn);
+      });
+      wrapRespaldo.style.display = 'block';
+    }
 
     const guardarUbicacion = (lat, lng, precision) => {
       ultimaUbicacionSOS = { lat, lng, precision };
@@ -1937,7 +1964,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     if(!ultimaUbicacionSOS){ showToast('Aún calculando tu ubicación, intenta en unos segundos'); return; }
     const { lat, lng, precision } = ultimaUbicacionSOS;
     const mapsLink = `https://maps.google.com/?q=${lat},${lng}`;
-    const mensaje = `🆘 SOS CSP\nGuardia: ${nombreGuardias(t)}\nSitio: ${t.sitio}\nUbicación: ${mapsLink}\nPrecisión GPS: ±${precision}m\nHora: ${new Date().toLocaleTimeString('es-BO')}`;
+    const mensaje = `🆘 SOS CSP\nSitio: ${t.sitio}\nTurno: ${t.tipoLabel}\nUbicación: ${mapsLink}\nPrecisión GPS: ±${precision}m\nHora: ${new Date().toLocaleTimeString('es-BO')}`;
     const url = `https://wa.me/${CONTACTO_SOS}?text=${encodeURIComponent(mensaje)}`;
     window.open(url, '_blank');
   };
@@ -2124,7 +2151,15 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
   document.getElementById('btn-novedad').onclick = ()=>{
     const t = turno(turnoActivoId);
-    document.getElementById('novedad-sitio-hint').textContent = 'Sitio: ' + t.sitio + ' · ' + nombreGuardias(t);
+    document.getElementById('novedad-sitio-hint').textContent = 'Sitio: ' + t.sitio;
+    const wrapGuardia = document.getElementById('novedad-guardia-wrap');
+    const selectGuardia = document.getElementById('novedad-guardia-select');
+    if(t.guardiasPresentes.length > 1){
+      selectGuardia.innerHTML = t.guardiasPresentes.map(n=>`<option value="${n}">${n}</option>`).join('');
+      wrapGuardia.style.display = 'block';
+    } else {
+      wrapGuardia.style.display = 'none';
+    }
     document.getElementById('novedad-desc').value='';
     novedadAdjuntos = [];
     renderMediaPreview();
@@ -2137,10 +2172,13 @@ svg.leaflet-image-layer.leaflet-interactive path {
     const t = turno(turnoActivoId);
     const desc = document.getElementById('novedad-desc').value.trim();
     const cat = document.getElementById('novedad-categoria').value;
+    const guardiaQueReporta = t.guardiasPresentes.length > 1
+      ? document.getElementById('novedad-guardia-select').value
+      : t.guardiasPresentes[0];
     document.getElementById('modal-novedad').classList.remove('show');
     const ahora = new Date();
     novedadesGuardadas.unshift({
-      id: 'n'+Date.now(), turnoId: t.id, sitio: t.sitio, guardia: nombreGuardias(t),
+      id: 'n'+Date.now(), turnoId: t.id, sitio: t.sitio, guardia: guardiaQueReporta,
       categoria: cat, descripcion: desc || '(sin descripción)',
       fecha: ahora.toLocaleDateString('es-BO'),
       hora: ahora.toLocaleTimeString('es-BO', {hour:'2-digit', minute:'2-digit'}),
@@ -2150,7 +2188,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     const nVideos = novedadAdjuntos.filter(a=>a.tipo==='video').length;
     let extra = '';
     if(nFotos || nVideos) extra = ` · ${nFotos} foto(s), ${nVideos} video(s)`;
-    showToast(`Novedad (${cat}) guardada${extra}`);
+    showToast(`Novedad (${cat}) guardada · ${guardiaQueReporta}${extra}`);
     renderSupervisor();
   };
 
