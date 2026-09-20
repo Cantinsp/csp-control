@@ -712,6 +712,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
   .g-guardias-lista{ list-style:none; margin:8px 0 0; padding:0; }
   .g-guardias-lista li{ font-size:13.5px; color:rgba(245,243,238,0.85); padding:2px 0 2px 16px; position:relative; }
   .g-guardias-lista li::before{ content:'•'; color:var(--gold); position:absolute; left:0; }
+  #input-guardia-extra{ border-radius:6px; border:1px solid var(--line); background:var(--charcoal); color:var(--off-white); font-family:'Inter',sans-serif; }
+  #input-guardia-extra:focus{ outline:none; border-color:var(--gold); }
 
   .g-switcher{ display:flex; gap:8px; padding:12px 20px; overflow-x:auto; border-bottom:1px solid var(--line); }
   .g-switch-btn{ flex-shrink:0; font-family:'IBM Plex Mono',monospace; font-size:11.5px; padding:6px 10px; border-radius:6px; border:1px solid var(--line); background:transparent; color:rgba(245,243,238,0.6); cursor:pointer; }
@@ -927,10 +929,16 @@ svg.leaflet-image-layer.leaflet-interactive path {
   <!-- ============ GUARD VIEW ============ -->
   <div id="view-guardia" class="active">
     <div class="g-header">
-      <div class="g-eyebrow">Turno en curso</div>
+      <div class="g-eyebrow" id="g-eyebrow-turno">Turno en curso</div>
       <div class="g-title" id="g-sitio-nombre">—</div>
       <div class="g-sub" id="g-turno-meta">—</div>
-      <ul class="g-guardias-lista" id="g-guardias-lista" style="display:none;"></ul>
+      <div id="g-guardias-bloque" style="display:none; margin-top:10px;">
+        <ul class="g-guardias-lista" id="g-guardias-lista"></ul>
+        <div style="display:flex; gap:6px; margin-top:8px;">
+          <input type="text" id="input-guardia-extra" list="lista-guardias-conocidos" placeholder="Nombre del guardia que llega..." autocomplete="off" style="flex:1; font-size:12.5px; padding:8px 10px;">
+          <button id="btn-agregar-guardia-extra" style="flex-shrink:0; background:rgba(245,243,238,0.08); border:1px solid var(--line); color:var(--off-white); padding:0 12px; border-radius:6px; font-family:'Oswald',sans-serif; font-weight:600; font-size:12px; cursor:pointer;">+ Sumar</button>
+        </div>
+      </div>
     </div>
 
     <div class="g-switcher" id="g-switcher"></div>
@@ -1298,6 +1306,23 @@ svg.leaflet-image-layer.leaflet-interactive path {
     if(e.key === 'Enter'){ e.preventDefault(); agregarGuardiaATurno(); }
   });
 
+  function agregarGuardiaEnCurso(){
+    const t = turno(turnoActivoId);
+    const input = document.getElementById('input-guardia-extra');
+    const nombre = input.value.trim();
+    if(!nombre) return;
+    if(t.guardiasPresentes.includes(nombre)){ showToast('Ese nombre ya está en la lista'); return; }
+    t.guardiasPresentes.push(nombre);
+    registrarNombreEnHistorial(nombre);
+    input.value = '';
+    showToast(`${nombre} sumado a ${t.tipoLabel}`);
+    renderGuardia(); renderSupervisor();
+  }
+  document.getElementById('btn-agregar-guardia-extra').onclick = agregarGuardiaEnCurso;
+  document.getElementById('input-guardia-extra').addEventListener('keydown', e=>{
+    if(e.key === 'Enter'){ e.preventDefault(); agregarGuardiaEnCurso(); }
+  });
+
   function comenzarTurno(){
     const t = turno(turnoActivoId);
     if(t.guardiasPresentes.length === 0){ showToast('Agrega al menos un guardia para comenzar el turno'); return; }
@@ -1328,6 +1353,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
     renderSwitcher();
     const t = turno(turnoActivoId);
 
+    document.getElementById('g-eyebrow-turno').textContent = `Turno en curso · ${new Date().toLocaleDateString('es-BO')}`;
+
     const pantallaInicio = document.getElementById('turno-inicio-pantalla');
     const contenido = document.getElementById('guardia-contenido');
 
@@ -1347,15 +1374,10 @@ svg.leaflet-image-layer.leaflet-interactive path {
     contenido.style.display = 'block';
 
     document.getElementById('g-sitio-nombre').textContent = t.sitio;
-    document.getElementById('g-turno-meta').textContent = `${t.tipoLabel} · ${t._minutosTranscurridos} min transcurridos (sim.)`;
+    document.getElementById('g-turno-meta').textContent = t.tipoLabel;
 
-    const listaGuardiasEl = document.getElementById('g-guardias-lista');
-    if(t.guardiasPresentes.length > 1){
-      listaGuardiasEl.innerHTML = t.guardiasPresentes.map(n=>`<li>${n}</li>`).join('');
-      listaGuardiasEl.style.display = 'block';
-    } else {
-      listaGuardiasEl.style.display = 'none';
-    }
+    document.getElementById('g-guardias-bloque').style.display = 'block';
+    document.getElementById('g-guardias-lista').innerHTML = t.guardiasPresentes.map(n=>`<li>${n}</li>`).join('');
 
     const r = rondaActiva(t);
     const statusEl = document.getElementById('ronda-status');
