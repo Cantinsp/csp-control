@@ -1579,13 +1579,13 @@ svg.leaflet-image-layer.leaflet-interactive path {
     if(selectTurno) selectTurno.value = turnoId;
     poblarSelectorRondas();
     if(rondaMap) rondaMap.invalidateSize();
-    renderMapa();
+    renderMapa(true);
     const mapEl = document.getElementById('ronda-map');
     if(mapEl) mapEl.scrollIntoView({behavior:'smooth', block:'center'});
     // el scroll suave cambia el layout mientras se anima — confirmamos tamaño
     // y volvemos a encuadrar una vez que termina, para que no quede descentrado
     setTimeout(()=>{
-      if(rondaMap){ rondaMap.invalidateSize(); renderMapa(); }
+      if(rondaMap){ rondaMap.invalidateSize(); renderMapa(true); }
     }, 450);
   }
 
@@ -1890,7 +1890,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
         mapaTurnoSeleccionado = selectTurno.value;
         mapaRondaSeleccionada = 'todas';
         poblarSelectorRondas();
-        renderMapa();
+        renderMapa(true);
       };
     } else {
       actualizarTextosSelectorTurno();
@@ -1916,13 +1916,13 @@ svg.leaflet-image-layer.leaflet-interactive path {
     const valores = Array.from(selectRonda.options).map(o=>o.value);
     if(!valores.includes(mapaRondaSeleccionada)) mapaRondaSeleccionada = 'todas';
     selectRonda.value = mapaRondaSeleccionada;
-    selectRonda.onchange = ()=>{ mapaRondaSeleccionada = selectRonda.value; renderMapa(); };
+    selectRonda.onchange = ()=>{ mapaRondaSeleccionada = selectRonda.value; renderMapa(true); };
   }
 
   // Paleta para distinguir rondas cuando se muestran "todas" juntas
   const PALETA_RONDAS = ['#0B2545', '#7A4FBF', '#1B7C9E', '#B3413B', '#2E7D5B', '#8a6d00'];
 
-  function renderMapa(){
+  function renderMapa(ajustarVista){
     if(!rondaMap) return;
     rondaMap.invalidateSize();
     actualizarTextosSelectorTurno();
@@ -2011,15 +2011,17 @@ svg.leaflet-image-layer.leaflet-interactive path {
       showToast('Error al dibujar el mapa: ' + e.message);
     }
 
-    try{
-      if(todosLosLatlngs.length === 1){
-        rondaMap.setView(todosLosLatlngs[0], 17);
-      } else if(todosLosLatlngs.length > 1){
-        rondaMap.fitBounds(todosLosLatlngs, { padding:[30,30], maxZoom:18 });
+    if(ajustarVista){
+      try{
+        if(todosLosLatlngs.length === 1){
+          rondaMap.setView(todosLosLatlngs[0], 17);
+        } else if(todosLosLatlngs.length > 1){
+          rondaMap.fitBounds(todosLosLatlngs, { padding:[30,30], maxZoom:18 });
+        }
+      } catch(e){
+        if(todosLosLatlngs.length) rondaMap.setView(todosLosLatlngs[todosLosLatlngs.length-1], 16);
+        showToast('Mapa: encuadre automático falló, centrado en el último punto');
       }
-    } catch(e){
-      if(todosLosLatlngs.length) rondaMap.setView(todosLosLatlngs[todosLosLatlngs.length-1], 16);
-      showToast('Mapa: encuadre automático falló, centrado en el último punto');
     }
   }
 
@@ -2028,7 +2030,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     setTimeout(()=>{
       inicializarMapa();
       if(rondaMap) rondaMap.invalidateSize(); // primero: que el mapa sepa su tamaño real ya visible
-      renderMapa(); // después: recién ahí calculamos el encuadre (fitBounds) correctamente
+      renderMapa(true); // después: recién ahí calculamos el encuadre (fitBounds) correctamente
     }, 80);
   });
 
