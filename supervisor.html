@@ -1,0 +1,2873 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>CSP Control · Supervisor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* required styles */
+
+.leaflet-pane,
+.leaflet-tile,
+.leaflet-marker-icon,
+.leaflet-marker-shadow,
+.leaflet-tile-container,
+.leaflet-pane > svg,
+.leaflet-pane > canvas,
+.leaflet-zoom-box,
+.leaflet-image-layer,
+.leaflet-layer {
+	position: absolute;
+	left: 0;
+	top: 0;
+	}
+.leaflet-container {
+	overflow: hidden;
+	}
+.leaflet-tile,
+.leaflet-marker-icon,
+.leaflet-marker-shadow {
+	-webkit-user-select: none;
+	   -moz-user-select: none;
+	        user-select: none;
+	  -webkit-user-drag: none;
+	}
+/* Prevents IE11 from highlighting tiles in blue */
+.leaflet-tile::selection {
+	background: transparent;
+}
+/* Safari renders non-retina tile on retina better with this, but Chrome is worse */
+.leaflet-safari .leaflet-tile {
+	image-rendering: -webkit-optimize-contrast;
+	}
+/* hack that prevents hw layers "stretching" when loading new tiles */
+.leaflet-safari .leaflet-tile-container {
+	width: 1600px;
+	height: 1600px;
+	-webkit-transform-origin: 0 0;
+	}
+.leaflet-marker-icon,
+.leaflet-marker-shadow {
+	display: block;
+	}
+/* .leaflet-container svg: reset svg max-width decleration shipped in Joomla! (joomla.org) 3.x */
+/* .leaflet-container img: map is broken in FF if you have max-width: 100% on tiles */
+.leaflet-container .leaflet-overlay-pane svg {
+	max-width: none !important;
+	max-height: none !important;
+	}
+.leaflet-container .leaflet-marker-pane img,
+.leaflet-container .leaflet-shadow-pane img,
+.leaflet-container .leaflet-tile-pane img,
+.leaflet-container img.leaflet-image-layer,
+.leaflet-container .leaflet-tile {
+	max-width: none !important;
+	max-height: none !important;
+	width: auto;
+	padding: 0;
+	}
+
+.leaflet-container img.leaflet-tile {
+	/* See: https://bugs.chromium.org/p/chromium/issues/detail?id=600120 */
+	mix-blend-mode: plus-lighter;
+}
+
+.leaflet-container.leaflet-touch-zoom {
+	-ms-touch-action: pan-x pan-y;
+	touch-action: pan-x pan-y;
+	}
+.leaflet-container.leaflet-touch-drag {
+	-ms-touch-action: pinch-zoom;
+	/* Fallback for FF which doesn't support pinch-zoom */
+	touch-action: none;
+	touch-action: pinch-zoom;
+}
+.leaflet-container.leaflet-touch-drag.leaflet-touch-zoom {
+	-ms-touch-action: none;
+	touch-action: none;
+}
+.leaflet-container {
+	-webkit-tap-highlight-color: transparent;
+}
+.leaflet-container a {
+	-webkit-tap-highlight-color: rgba(51, 181, 229, 0.4);
+}
+.leaflet-tile {
+	filter: inherit;
+	visibility: hidden;
+	}
+.leaflet-tile-loaded {
+	visibility: inherit;
+	}
+.leaflet-zoom-box {
+	width: 0;
+	height: 0;
+	-moz-box-sizing: border-box;
+	     box-sizing: border-box;
+	z-index: 800;
+	}
+/* workaround for https://bugzilla.mozilla.org/show_bug.cgi?id=888319 */
+.leaflet-overlay-pane svg {
+	-moz-user-select: none;
+	}
+
+.leaflet-pane         { z-index: 400; }
+
+.leaflet-tile-pane    { z-index: 200; }
+.leaflet-overlay-pane { z-index: 400; }
+.leaflet-shadow-pane  { z-index: 500; }
+.leaflet-marker-pane  { z-index: 600; }
+.leaflet-tooltip-pane   { z-index: 650; }
+.leaflet-popup-pane   { z-index: 700; }
+
+.leaflet-map-pane canvas { z-index: 100; }
+.leaflet-map-pane svg    { z-index: 200; }
+
+.leaflet-vml-shape {
+	width: 1px;
+	height: 1px;
+	}
+.lvml {
+	behavior: url(#default#VML);
+	display: inline-block;
+	position: absolute;
+	}
+
+
+/* control positioning */
+
+.leaflet-control {
+	position: relative;
+	z-index: 800;
+	pointer-events: visiblePainted; /* IE 9-10 doesn't have auto */
+	pointer-events: auto;
+	}
+.leaflet-top,
+.leaflet-bottom {
+	position: absolute;
+	z-index: 1000;
+	pointer-events: none;
+	}
+.leaflet-top {
+	top: 0;
+	}
+.leaflet-right {
+	right: 0;
+	}
+.leaflet-bottom {
+	bottom: 0;
+	}
+.leaflet-left {
+	left: 0;
+	}
+.leaflet-control {
+	float: left;
+	clear: both;
+	}
+.leaflet-right .leaflet-control {
+	float: right;
+	}
+.leaflet-top .leaflet-control {
+	margin-top: 10px;
+	}
+.leaflet-bottom .leaflet-control {
+	margin-bottom: 10px;
+	}
+.leaflet-left .leaflet-control {
+	margin-left: 10px;
+	}
+.leaflet-right .leaflet-control {
+	margin-right: 10px;
+	}
+
+
+/* zoom and fade animations */
+
+.leaflet-fade-anim .leaflet-popup {
+	opacity: 0;
+	-webkit-transition: opacity 0.2s linear;
+	   -moz-transition: opacity 0.2s linear;
+	        transition: opacity 0.2s linear;
+	}
+.leaflet-fade-anim .leaflet-map-pane .leaflet-popup {
+	opacity: 1;
+	}
+.leaflet-zoom-animated {
+	-webkit-transform-origin: 0 0;
+	    -ms-transform-origin: 0 0;
+	        transform-origin: 0 0;
+	}
+svg.leaflet-zoom-animated {
+	will-change: transform;
+}
+
+.leaflet-zoom-anim .leaflet-zoom-animated {
+	-webkit-transition: -webkit-transform 0.25s cubic-bezier(0,0,0.25,1);
+	   -moz-transition:    -moz-transform 0.25s cubic-bezier(0,0,0.25,1);
+	        transition:         transform 0.25s cubic-bezier(0,0,0.25,1);
+	}
+.leaflet-zoom-anim .leaflet-tile,
+.leaflet-pan-anim .leaflet-tile {
+	-webkit-transition: none;
+	   -moz-transition: none;
+	        transition: none;
+	}
+
+.leaflet-zoom-anim .leaflet-zoom-hide {
+	visibility: hidden;
+	}
+
+
+/* cursors */
+
+.leaflet-interactive {
+	cursor: pointer;
+	}
+.leaflet-grab {
+	cursor: -webkit-grab;
+	cursor:    -moz-grab;
+	cursor:         grab;
+	}
+.leaflet-crosshair,
+.leaflet-crosshair .leaflet-interactive {
+	cursor: crosshair;
+	}
+.leaflet-popup-pane,
+.leaflet-control {
+	cursor: auto;
+	}
+.leaflet-dragging .leaflet-grab,
+.leaflet-dragging .leaflet-grab .leaflet-interactive,
+.leaflet-dragging .leaflet-marker-draggable {
+	cursor: move;
+	cursor: -webkit-grabbing;
+	cursor:    -moz-grabbing;
+	cursor:         grabbing;
+	}
+
+/* marker & overlays interactivity */
+.leaflet-marker-icon,
+.leaflet-marker-shadow,
+.leaflet-image-layer,
+.leaflet-pane > svg path,
+.leaflet-tile-container {
+	pointer-events: none;
+	}
+
+.leaflet-marker-icon.leaflet-interactive,
+.leaflet-image-layer.leaflet-interactive,
+.leaflet-pane > svg path.leaflet-interactive,
+svg.leaflet-image-layer.leaflet-interactive path {
+	pointer-events: visiblePainted; /* IE 9-10 doesn't have auto */
+	pointer-events: auto;
+	}
+
+/* visual tweaks */
+
+.leaflet-container {
+	background: #ddd;
+	outline-offset: 1px;
+	}
+.leaflet-container a {
+	color: #0078A8;
+	}
+.leaflet-zoom-box {
+	border: 2px dotted #38f;
+	background: rgba(255,255,255,0.5);
+	}
+
+
+/* general typography */
+.leaflet-container {
+	font-family: "Helvetica Neue", Arial, Helvetica, sans-serif;
+	font-size: 12px;
+	font-size: 0.75rem;
+	line-height: 1.5;
+	}
+
+
+/* general toolbar styles */
+
+.leaflet-bar {
+	box-shadow: 0 1px 5px rgba(0,0,0,0.65);
+	border-radius: 4px;
+	}
+.leaflet-bar a {
+	background-color: #fff;
+	border-bottom: 1px solid #ccc;
+	width: 26px;
+	height: 26px;
+	line-height: 26px;
+	display: block;
+	text-align: center;
+	text-decoration: none;
+	color: black;
+	}
+.leaflet-bar a,
+.leaflet-control-layers-toggle {
+	background-position: 50% 50%;
+	background-repeat: no-repeat;
+	display: block;
+	}
+.leaflet-bar a:hover,
+.leaflet-bar a:focus {
+	background-color: #f4f4f4;
+	}
+.leaflet-bar a:first-child {
+	border-top-left-radius: 4px;
+	border-top-right-radius: 4px;
+	}
+.leaflet-bar a:last-child {
+	border-bottom-left-radius: 4px;
+	border-bottom-right-radius: 4px;
+	border-bottom: none;
+	}
+.leaflet-bar a.leaflet-disabled {
+	cursor: default;
+	background-color: #f4f4f4;
+	color: #bbb;
+	}
+
+.leaflet-touch .leaflet-bar a {
+	width: 30px;
+	height: 30px;
+	line-height: 30px;
+	}
+.leaflet-touch .leaflet-bar a:first-child {
+	border-top-left-radius: 2px;
+	border-top-right-radius: 2px;
+	}
+.leaflet-touch .leaflet-bar a:last-child {
+	border-bottom-left-radius: 2px;
+	border-bottom-right-radius: 2px;
+	}
+
+/* zoom control */
+
+.leaflet-control-zoom-in,
+.leaflet-control-zoom-out {
+	font: bold 18px 'Lucida Console', Monaco, monospace;
+	text-indent: 1px;
+	}
+
+.leaflet-touch .leaflet-control-zoom-in, .leaflet-touch .leaflet-control-zoom-out  {
+	font-size: 22px;
+	}
+
+
+/* layers control */
+
+.leaflet-control-layers {
+	box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+	background: #fff;
+	border-radius: 5px;
+	}
+.leaflet-control-layers-toggle {
+	background-image: url(images/layers.png);
+	width: 36px;
+	height: 36px;
+	}
+.leaflet-retina .leaflet-control-layers-toggle {
+	background-image: url(images/layers-2x.png);
+	background-size: 26px 26px;
+	}
+.leaflet-touch .leaflet-control-layers-toggle {
+	width: 44px;
+	height: 44px;
+	}
+.leaflet-control-layers .leaflet-control-layers-list,
+.leaflet-control-layers-expanded .leaflet-control-layers-toggle {
+	display: none;
+	}
+.leaflet-control-layers-expanded .leaflet-control-layers-list {
+	display: block;
+	position: relative;
+	}
+.leaflet-control-layers-expanded {
+	padding: 6px 10px 6px 6px;
+	color: #333;
+	background: #fff;
+	}
+.leaflet-control-layers-scrollbar {
+	overflow-y: scroll;
+	overflow-x: hidden;
+	padding-right: 5px;
+	}
+.leaflet-control-layers-selector {
+	margin-top: 2px;
+	position: relative;
+	top: 1px;
+	}
+.leaflet-control-layers label {
+	display: block;
+	font-size: 13px;
+	font-size: 1.08333em;
+	}
+.leaflet-control-layers-separator {
+	height: 0;
+	border-top: 1px solid #ddd;
+	margin: 5px -10px 5px -6px;
+	}
+
+/* Default icon URLs */
+.leaflet-default-icon-path { /* used only in path-guessing heuristic, see L.Icon.Default */
+	background-image: url(images/marker-icon.png);
+	}
+
+
+/* attribution and scale controls */
+
+.leaflet-container .leaflet-control-attribution {
+	background: #fff;
+	background: rgba(255, 255, 255, 0.8);
+	margin: 0;
+	}
+.leaflet-control-attribution,
+.leaflet-control-scale-line {
+	padding: 0 5px;
+	color: #333;
+	line-height: 1.4;
+	}
+.leaflet-control-attribution a {
+	text-decoration: none;
+	}
+.leaflet-control-attribution a:hover,
+.leaflet-control-attribution a:focus {
+	text-decoration: underline;
+	}
+.leaflet-attribution-flag {
+	display: inline !important;
+	vertical-align: baseline !important;
+	width: 1em;
+	height: 0.6669em;
+	}
+.leaflet-left .leaflet-control-scale {
+	margin-left: 5px;
+	}
+.leaflet-bottom .leaflet-control-scale {
+	margin-bottom: 5px;
+	}
+.leaflet-control-scale-line {
+	border: 2px solid #777;
+	border-top: none;
+	line-height: 1.1;
+	padding: 2px 5px 1px;
+	white-space: nowrap;
+	-moz-box-sizing: border-box;
+	     box-sizing: border-box;
+	background: rgba(255, 255, 255, 0.8);
+	text-shadow: 1px 1px #fff;
+	}
+.leaflet-control-scale-line:not(:first-child) {
+	border-top: 2px solid #777;
+	border-bottom: none;
+	margin-top: -2px;
+	}
+.leaflet-control-scale-line:not(:first-child):not(:last-child) {
+	border-bottom: 2px solid #777;
+	}
+
+.leaflet-touch .leaflet-control-attribution,
+.leaflet-touch .leaflet-control-layers,
+.leaflet-touch .leaflet-bar {
+	box-shadow: none;
+	}
+.leaflet-touch .leaflet-control-layers,
+.leaflet-touch .leaflet-bar {
+	border: 2px solid rgba(0,0,0,0.2);
+	background-clip: padding-box;
+	}
+
+
+/* popup */
+
+.leaflet-popup {
+	position: absolute;
+	text-align: center;
+	margin-bottom: 20px;
+	}
+.leaflet-popup-content-wrapper {
+	padding: 1px;
+	text-align: left;
+	border-radius: 12px;
+	}
+.leaflet-popup-content {
+	margin: 13px 24px 13px 20px;
+	line-height: 1.3;
+	font-size: 13px;
+	font-size: 1.08333em;
+	min-height: 1px;
+	}
+.leaflet-popup-content p {
+	margin: 17px 0;
+	margin: 1.3em 0;
+	}
+.leaflet-popup-tip-container {
+	width: 40px;
+	height: 20px;
+	position: absolute;
+	left: 50%;
+	margin-top: -1px;
+	margin-left: -20px;
+	overflow: hidden;
+	pointer-events: none;
+	}
+.leaflet-popup-tip {
+	width: 17px;
+	height: 17px;
+	padding: 1px;
+
+	margin: -10px auto 0;
+	pointer-events: auto;
+
+	-webkit-transform: rotate(45deg);
+	   -moz-transform: rotate(45deg);
+	    -ms-transform: rotate(45deg);
+	        transform: rotate(45deg);
+	}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+	background: white;
+	color: #333;
+	box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+	}
+.leaflet-container a.leaflet-popup-close-button {
+	position: absolute;
+	top: 0;
+	right: 0;
+	border: none;
+	text-align: center;
+	width: 24px;
+	height: 24px;
+	font: 16px/24px Tahoma, Verdana, sans-serif;
+	color: #757575;
+	text-decoration: none;
+	background: transparent;
+	}
+.leaflet-container a.leaflet-popup-close-button:hover,
+.leaflet-container a.leaflet-popup-close-button:focus {
+	color: #585858;
+	}
+.leaflet-popup-scrolled {
+	overflow: auto;
+	}
+
+.leaflet-oldie .leaflet-popup-content-wrapper {
+	-ms-zoom: 1;
+	}
+.leaflet-oldie .leaflet-popup-tip {
+	width: 24px;
+	margin: 0 auto;
+
+	-ms-filter: "progid:DXImageTransform.Microsoft.Matrix(M11=0.70710678, M12=0.70710678, M21=-0.70710678, M22=0.70710678)";
+	filter: progid:DXImageTransform.Microsoft.Matrix(M11=0.70710678, M12=0.70710678, M21=-0.70710678, M22=0.70710678);
+	}
+
+.leaflet-oldie .leaflet-control-zoom,
+.leaflet-oldie .leaflet-control-layers,
+.leaflet-oldie .leaflet-popup-content-wrapper,
+.leaflet-oldie .leaflet-popup-tip {
+	border: 1px solid #999;
+	}
+
+
+/* div icon */
+
+.leaflet-div-icon {
+	background: #fff;
+	border: 1px solid #666;
+	}
+
+
+/* Tooltip */
+/* Base styles for the element that has a tooltip */
+.leaflet-tooltip {
+	position: absolute;
+	padding: 6px;
+	background-color: #fff;
+	border: 1px solid #fff;
+	border-radius: 3px;
+	color: #222;
+	white-space: nowrap;
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+	pointer-events: none;
+	box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+	}
+.leaflet-tooltip.leaflet-interactive {
+	cursor: pointer;
+	pointer-events: auto;
+	}
+.leaflet-tooltip-top:before,
+.leaflet-tooltip-bottom:before,
+.leaflet-tooltip-left:before,
+.leaflet-tooltip-right:before {
+	position: absolute;
+	pointer-events: none;
+	border: 6px solid transparent;
+	background: transparent;
+	content: "";
+	}
+
+/* Directions */
+
+.leaflet-tooltip-bottom {
+	margin-top: 6px;
+}
+.leaflet-tooltip-top {
+	margin-top: -6px;
+}
+.leaflet-tooltip-bottom:before,
+.leaflet-tooltip-top:before {
+	left: 50%;
+	margin-left: -6px;
+	}
+.leaflet-tooltip-top:before {
+	bottom: 0;
+	margin-bottom: -12px;
+	border-top-color: #fff;
+	}
+.leaflet-tooltip-bottom:before {
+	top: 0;
+	margin-top: -12px;
+	margin-left: -6px;
+	border-bottom-color: #fff;
+	}
+.leaflet-tooltip-left {
+	margin-left: -6px;
+}
+.leaflet-tooltip-right {
+	margin-left: 6px;
+}
+.leaflet-tooltip-left:before,
+.leaflet-tooltip-right:before {
+	top: 50%;
+	margin-top: -6px;
+	}
+.leaflet-tooltip-left:before {
+	right: 0;
+	margin-right: -12px;
+	border-left-color: #fff;
+	}
+.leaflet-tooltip-right:before {
+	left: 0;
+	margin-left: -12px;
+	border-right-color: #fff;
+	}
+
+/* Printing */
+
+@media print {
+	/* Prevent printers from removing background-images of controls. */
+	.leaflet-control {
+		-webkit-print-color-adjust: exact;
+		print-color-adjust: exact;
+		}
+	}
+
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --navy:#0B2545;
+    --navy-deep:#071729;
+    --gold:#D4AF37;
+    --gold-soft:#E8CD70;
+    --off-white:#F5F3EE;
+    --charcoal:#12161d;
+    --ok:#2E7D5B;
+    --late:#C9A227;
+    --skip:#B3413B;
+    --line:rgba(245,243,238,0.12);
+    --line-light:rgba(11,37,69,0.12);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{ font-family:'Inter',sans-serif; background:var(--off-white); color:var(--navy); min-height:100vh; }
+  .app{ display:flex; flex-direction:column; min-height:100vh; }
+
+  .brandbar{ background:var(--navy-deep); padding:10px 20px 4px; display:flex; align-items:center; gap:8px; }
+  .brandbar .brand-name{ font-family:'Oswald',sans-serif; font-weight:700; font-size:15px; letter-spacing:0.04em; color:var(--gold); text-transform:uppercase; }
+  .brandbar .brand-dot{ width:6px; height:6px; border-radius:50%; background:var(--ok); }
+  .modo-prueba-toggle{ margin-left:auto; background:rgba(245,243,238,0.08); border:1px solid var(--line); color:rgba(245,243,238,0.55); font-size:11px; font-family:'IBM Plex Mono',monospace; padding:5px 10px; border-radius:20px; cursor:pointer; }
+  .modo-prueba-toggle strong{ color:rgba(245,243,238,0.7); }
+  .modo-prueba-toggle.activo{ background:rgba(212,175,55,0.15); border-color:var(--gold); color:var(--gold-soft); }
+  .modo-prueba-toggle.activo strong{ color:var(--gold); }
+
+  .tabbar{ display:none; }
+  .tab{ flex:1; text-align:center; padding:16px 8px 14px; color:rgba(245,243,238,0.5); font-family:'Oswald',sans-serif; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; font-size:13px; cursor:pointer; border-bottom:3px solid transparent; transition:color .2s, border-color .2s; }
+  .tab.active{ color:var(--gold); border-color:var(--gold); }
+
+  /* ===== GUARD VIEW ===== */
+  #view-guardia{ display:none; flex:1; background:var(--charcoal); color:var(--off-white); }
+  #view-guardia.active{ display:flex; flex-direction:column; }
+
+  .g-header{ padding:18px 20px 14px; border-bottom:1px solid var(--line); }
+  .g-eyebrow{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.12em; color:var(--gold); text-transform:uppercase; }
+  .g-title{ font-family:'Oswald',sans-serif; font-size:22px; font-weight:600; margin-top:4px; }
+  .g-sub{ font-size:13px; color:rgba(245,243,238,0.55); margin-top:2px; }
+  .g-guardias-lista{ list-style:none; margin:8px 0 0; padding:0; }
+  .g-guardias-lista li{ font-size:13.5px; color:rgba(245,243,238,0.85); padding:3px 0 3px 16px; position:relative; display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .btn-quitar-guardia{ background:none; border:1px solid rgba(179,65,59,0.4); color:#e08a83; font-size:10.5px; font-family:'IBM Plex Mono',monospace; padding:3px 8px; border-radius:12px; cursor:pointer; flex-shrink:0; }
+  .g-guardias-lista li::before{ content:'•'; color:var(--gold); position:absolute; left:0; }
+  #input-guardia-extra{ border-radius:6px; border:1px solid var(--line); background:var(--charcoal); color:var(--off-white); font-family:'Inter',sans-serif; }
+  #input-guardia-extra:focus{ outline:none; border-color:var(--gold); }
+
+  .g-switcher{ display:flex; gap:8px; padding:12px 20px; overflow-x:auto; border-bottom:1px solid var(--line); }
+  .g-switch-btn{ flex-shrink:0; font-family:'IBM Plex Mono',monospace; font-size:11.5px; padding:6px 10px; border-radius:6px; border:1px solid var(--line); background:transparent; color:rgba(245,243,238,0.6); cursor:pointer; }
+  .g-switch-btn.active{ background:var(--gold); color:var(--navy-deep); border-color:var(--gold); font-weight:600; }
+
+  .inicio-turno-card{ background:rgba(245,243,238,0.04); border:1px solid var(--line); border-radius:14px; padding:22px 20px; }
+  .inicio-turno-card input{
+    width:100%;
+    margin-top:6px;
+    padding:12px 14px;
+    border-radius:8px;
+    border:1px solid var(--line);
+    background:var(--charcoal);
+    color:var(--off-white);
+    font-family:'Inter',sans-serif;
+    font-size:15px;
+  }
+  .inicio-turno-card input:focus{ outline:none; border-color:var(--gold); }
+  .chips-guardias{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .chip-guardia{ display:flex; align-items:center; gap:6px; background:rgba(212,175,55,0.12); border:1px solid rgba(212,175,55,0.35); color:var(--gold-soft); padding:6px 8px 6px 12px; border-radius:20px; font-size:13px; }
+  .chip-guardia button{ background:none; border:none; color:var(--gold-soft); cursor:pointer; font-size:15px; line-height:1; padding:0 2px; }
+  .mark-btn:disabled{ opacity:0.35; cursor:not-allowed; }
+
+  .g-note{ padding:0 20px 10px; font-size:11px; color:rgba(245,243,238,0.4); font-family:'IBM Plex Mono',monospace; line-height:1.5; }
+
+  #hv-unlock-banner{ margin:0 20px 12px; padding:10px 14px; background:rgba(212,175,55,0.12); border:1px solid rgba(212,175,55,0.4); border-radius:8px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  #hv-unlock-banner span{ font-size:12px; color:var(--gold-soft); }
+  #btn-unlock-audio{ flex-shrink:0; background:var(--gold); color:var(--navy-deep); border:none; padding:8px 14px; border-radius:6px; font-family:'Oswald',sans-serif; font-weight:600; font-size:12px; text-transform:uppercase; cursor:pointer; }
+
+  .g-stats{ display:flex; gap:10px; padding:14px 20px; }
+  .g-stat{ flex:1; background:rgba(245,243,238,0.04); border:1px solid var(--line); border-radius:10px; padding:10px 12px; text-align:center; }
+  .g-stat-num{ font-family:'Oswald',sans-serif; font-size:20px; font-weight:600; }
+  .g-stat-label{ font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:rgba(245,243,238,0.45); margin-top:2px; }
+  .g-stat.warn .g-stat-num{ color:var(--late); }
+
+  .mark-btn-wrap{ padding:6px 20px 16px; }
+  .mark-btn{ width:100%; background:var(--gold); color:var(--navy-deep); border:none; padding:18px; border-radius:14px; font-family:'Oswald',sans-serif; font-weight:700; font-size:16px; letter-spacing:0.03em; text-transform:uppercase; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; }
+  .mark-btn:active{ transform:scale(0.98); }
+  .mark-btn .ic{ font-size:20px; }
+  .mark-hint{ text-align:center; font-size:11px; color:rgba(245,243,238,0.4); margin-top:8px; font-family:'IBM Plex Mono',monospace; }
+  .mark-sim-btn{ display:block; margin:8px auto 0; background:transparent; border:1px solid var(--line); color:rgba(245,243,238,0.45); font-size:11px; padding:6px 12px; border-radius:6px; cursor:pointer; }
+
+  .ronda-status{ padding:0 20px 10px; text-align:center; }
+  .ronda-status .badge-off{ display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:rgba(245,243,238,0.4); }
+  .ronda-status .badge-on{ display:inline-flex; align-items:center; gap:6px; font-family:'Oswald',sans-serif; font-weight:600; font-size:13px; color:var(--gold-soft); background:rgba(212,175,55,0.12); border:1px solid rgba(212,175,55,0.35); padding:5px 14px; border-radius:20px; }
+  .ronda-status .badge-on .live-dot{ width:7px; height:7px; border-radius:50%; background:var(--gold); animation:pulse 1.4s infinite; }
+
+  .ronda-end-btn{ width:100%; background:var(--ok); border:none; color:#fff; padding:18px; border-radius:14px; font-family:'Oswald',sans-serif; font-weight:700; font-size:16px; letter-spacing:0.03em; text-transform:uppercase; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; margin-top:8px; box-shadow:0 2px 8px rgba(0,0,0,0.35); }
+  .ronda-end-btn:active{ transform:scale(0.98); }
+
+  .ronda-group{ margin-bottom:18px; }
+  .ronda-group-header{ display:flex; justify-content:space-between; align-items:center; padding:6px 0; margin-bottom:4px; border-bottom:1px solid var(--line); }
+  .ronda-group-title{ font-family:'Oswald',sans-serif; font-weight:700; font-size:13px; letter-spacing:0.04em; text-transform:uppercase; color:var(--gold-soft); }
+  .ronda-group-meta{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:rgba(245,243,238,0.4); }
+  .ronda-group.en-curso .ronda-group-title{ color:var(--gold); }
+  .ronda-group-body{ position:relative; padding-left:2px; }
+  .ronda-group-line{ position:absolute; left:16px; top:8px; bottom:14px; width:2px; background:var(--line); }
+
+  .path-wrap{ flex:1; overflow-y:auto; padding:6px 24px 24px; position:relative; }
+  .path-line{ position:absolute; left:34px; top:14px; bottom:24px; width:2px; background:var(--line); }
+  .punto{ position:relative; display:flex; align-items:flex-start; gap:16px; padding:12px 0; }
+  .punto-node{ width:26px; height:26px; border-radius:50%; border:2px solid var(--ok); background:var(--ok); flex-shrink:0; z-index:1; display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--off-white); }
+  .punto-body{ flex:1; padding-top:2px; }
+  .punto-hora{ font-weight:600; font-size:15px; font-family:'IBM Plex Mono',monospace; }
+  .punto-meta{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:rgba(245,243,238,0.45); margin-top:2px; }
+  .punto-empty{ padding:30px 10px; text-align:center; color:rgba(245,243,238,0.35); font-size:13px; }
+
+  .g-actions{ display:flex; gap:10px; padding:14px 20px 20px; border-top:1px solid var(--line); background:var(--navy-deep); }
+  .action-btn{ flex:1; padding:14px 8px; border-radius:10px; border:none; font-family:'Oswald',sans-serif; font-weight:600; font-size:12px; letter-spacing:0.05em; text-transform:uppercase; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .action-btn .ic{ font-size:18px; }
+  .btn-sos{ background:var(--skip); color:#fff; }
+  .btn-novedad{ background:rgba(245,243,238,0.08); color:var(--off-white); border:1px solid var(--line); }
+  .btn-hv{ background:rgba(245,243,238,0.08); color:var(--off-white); border:1px solid var(--line); position:relative; }
+  .btn-hv.pending{ background:var(--gold); color:var(--navy-deep); animation:pulse 1.4s infinite; }
+  @keyframes pulse{ 0%{opacity:1;} 50%{opacity:0.55;} 100%{opacity:1;} }
+  .live-position-dot{ width:16px; height:16px; border-radius:50%; background:#1B7C9E; border:3px solid #fff; box-shadow:0 0 0 4px rgba(27,124,158,0.35); animation: livepulse 1.5s infinite; }
+  @keyframes livepulse{ 0%{ box-shadow:0 0 0 4px rgba(27,124,158,0.35); } 50%{ box-shadow:0 0 0 11px rgba(27,124,158,0.05); } 100%{ box-shadow:0 0 0 4px rgba(27,124,158,0.35); } }
+  .btn-sos-whatsapp{ background:#25D366; color:#fff; }
+
+  /* ===== SUPERVISOR VIEW ===== */
+  #view-supervisor{ display:none; flex:1; padding:22px 26px 40px; }
+  #view-supervisor.active{ display:block; }
+  /* ===== ADMINISTRACIÓN VIEW (mismo estilo base que supervisor) ===== */
+  #view-administracion{ display:none; flex:1; padding:22px 26px 40px; }
+  #view-administracion.active{ display:block; }
+  .admin-obs-card{ background:#fff; border:1px solid var(--line-light); border-radius:12px; padding:16px; margin-bottom:16px; }
+  .admin-obs-card textarea{ width:100%; border:1px solid #d8d5cd; border-radius:8px; padding:10px 12px; font-family:'Inter',sans-serif; font-size:13.5px; min-height:70px; margin-top:8px; resize:vertical; }
+  .admin-obs-card input{ width:100%; border:1px solid #d8d5cd; border-radius:8px; padding:10px 12px; font-family:'Inter',sans-serif; font-size:13.5px; margin-top:6px; }
+  .admin-obs-card label{ font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:0.04em; font-family:'IBM Plex Mono',monospace; }
+  .admin-obs-card button{ margin-top:10px; background:var(--navy); color:#fff; border:none; padding:10px 18px; border-radius:8px; font-family:'Oswald',sans-serif; font-weight:600; font-size:12.5px; letter-spacing:0.03em; text-transform:uppercase; cursor:pointer; }
+  .admin-obs-item{ background:#fff; border:1px solid var(--line-light); border-left:4px solid var(--navy); border-radius:10px; padding:12px 14px; margin-bottom:10px; }
+  .s-header{ margin-bottom:18px; }
+  .s-eyebrow{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.12em; color:var(--gold); text-transform:uppercase; }
+  .s-title{ font-family:'Oswald',sans-serif; font-size:26px; font-weight:600; color:var(--navy); margin-top:4px; }
+
+  .s-summary{ display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:22px; }
+  .s-card{ background:#fff; border:1px solid var(--line-light); border-radius:12px; padding:14px 16px; }
+  .s-card-num{ font-family:'Oswald',sans-serif; font-size:26px; font-weight:600; color:var(--navy); }
+  .s-card-label{ font-size:11.5px; color:#6b7280; text-transform:uppercase; letter-spacing:0.04em; margin-top:2px; }
+  .s-card.alert .s-card-num{ color:var(--skip); }
+  .s-card-click{ cursor:pointer; transition:transform .1s, box-shadow .15s; }
+  .s-card-click:active{ transform:scale(0.97); }
+  .s-card-click.open{ box-shadow:0 0 0 2px var(--gold) inset; }
+
+  .s-summary-detail{ background:#fff; border:1px solid var(--line-light); border-radius:12px; padding:14px 16px; margin:-10px 0 22px; }
+  .s-summary-detail-title{ font-family:'Oswald',sans-serif; font-weight:600; font-size:12.5px; text-transform:uppercase; letter-spacing:0.04em; color:var(--navy); margin-bottom:8px; }
+  .s-summary-detail-item{ padding:9px 0; border-top:1px solid var(--line-light); font-size:13px; }
+  .s-summary-detail-item:first-child{ border-top:none; }
+  .s-summary-detail-item strong{ display:block; color:var(--navy); }
+  .s-summary-detail-item span{ color:#6b7280; font-size:12px; }
+  .s-summary-detail-item.clickable{ cursor:pointer; }
+  .s-summary-detail-item.clickable:active{ background:#f5f3ee; }
+  .instalacion-line.clickable{ cursor:pointer; text-decoration:underline; text-decoration-color:var(--line-light); text-underline-offset:3px; }
+  .instalacion-line.clickable:active{ opacity:0.7; }
+  .s-summary-detail-empty{ color:#6b7280; font-size:13px; }
+
+  .instalacion-card{ background:#fff; border:1px solid var(--line-light); border-radius:12px; margin-bottom:12px; overflow:hidden; }
+  .instalacion-card.has-alert{ border-color:var(--skip); }
+  .instalacion-card.has-novedad{ border-color:var(--late); }
+  .instalacion-header{ display:flex; justify-content:space-between; align-items:center; padding:14px 16px; cursor:pointer; }
+  .instalacion-nombre{ font-family:'Oswald',sans-serif; font-weight:600; font-size:15px; color:var(--navy); }
+  .instalacion-sub{ font-size:12px; color:#6b7280; margin-top:2px; }
+  .instalacion-badge{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:3px 9px; border-radius:20px; background:rgba(46,125,91,0.12); color:var(--ok); white-space:nowrap; }
+  .instalacion-badge.alert{ background:rgba(179,65,59,0.12); color:var(--skip); }
+  .instalacion-badge.novedad{ background:rgba(201,162,39,0.15); color:#8a6d00; }
+  .instalacion-body{ padding:4px 16px 16px; border-top:1px solid var(--line-light); display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:14px; padding-top:14px; }
+  .instalacion-section-title{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:0.05em; color:#9aa5b1; margin-bottom:6px; }
+  .instalacion-line{ font-size:13px; padding:4px 0; color:var(--navy); }
+  .instalacion-line.muted{ color:#9aa5b1; }
+  .instalacion-line.alert-text{ color:var(--skip); font-weight:600; }
+  .instalacion-novedad-item{ margin-bottom:12px; }
+  .obs-item-supervisor{ margin-bottom:18px; padding-bottom:18px; border-bottom:1px solid var(--line-light); }
+  .obs-item-supervisor:last-child{ border-bottom:none; margin-bottom:0; padding-bottom:0; }
+  .obs-mensaje{ font-size:13px; padding:8px 12px; border-radius:8px; margin-bottom:6px; max-width:92%; }
+  .obs-mensaje strong{ font-family:'Oswald',sans-serif; }
+  .obs-mensaje-admin{ background:#eef0f2; color:var(--navy); border-left:3px solid #9aa5b1; }
+  .obs-mensaje-csp{ background:rgba(11,37,69,0.07); color:var(--navy); border-left:3px solid var(--navy); margin-left:8%; }
+  .obs-form-respuesta{ margin-top:8px; }
+  .obs-form-respuesta textarea{ width:100%; border:1px solid #d8d5cd; border-radius:8px; padding:8px 10px; font-family:'Inter',sans-serif; font-size:13px; min-height:50px; resize:vertical; }
+  .obs-form-respuesta input{ width:100%; border:1px solid #d8d5cd; border-radius:8px; padding:8px 10px; font-family:'Inter',sans-serif; font-size:13px; }
+  .obs-form-respuesta button{ margin-top:6px; background:var(--navy); color:#fff; border:none; padding:8px 14px; border-radius:6px; font-family:'Oswald',sans-serif; font-weight:600; font-size:11.5px; text-transform:uppercase; cursor:pointer; }
+  .instalacion-novedad-item:last-child{ margin-bottom:0; }
+
+  .s-section-title{ font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; color:var(--navy); margin:22px 0 10px; display:flex; align-items:center; gap:8px; }
+  .s-section-title::before{ content:''; width:4px; height:14px; background:var(--gold); display:inline-block; border-radius:2px; }
+
+  .s-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(300px,1fr)); gap:14px; }
+  .turno-card{ background:#fff; border:1px solid var(--line-light); border-left:4px solid var(--ok); border-radius:10px; padding:14px 16px; }
+  .turno-card.has-alert{ border-left-color:var(--skip); }
+  .turno-top{ display:flex; justify-content:space-between; align-items:flex-start; }
+  .turno-guardia{ font-weight:600; font-size:15px; }
+  .turno-sitio{ font-size:12.5px; color:#6b7280; margin-top:2px; }
+  .turno-badge{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:3px 8px; border-radius:20px; background:rgba(46,125,91,0.12); color:var(--ok); white-space:nowrap; }
+  .turno-badge.alert{ background:rgba(179,65,59,0.12); color:var(--skip); }
+  .turno-meta-row{ display:flex; justify-content:space-between; margin-top:10px; font-size:12px; color:#6b7280; font-family:'IBM Plex Mono',monospace; }
+  .turno-ultimo{ margin-top:8px; font-size:12.5px; color:var(--navy); }
+  .turno-ultimo strong{ font-family:'IBM Plex Mono',monospace; }
+  .turno-flags{ display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
+  .flag{ font-size:10.5px; padding:2px 7px; border-radius:5px; font-family:'IBM Plex Mono',monospace; }
+  .flag.idle{ background:rgba(201,162,39,0.15); color:#8a6d00; }
+  .flag.sos{ background:var(--skip); color:#fff; font-weight:600; }
+  .flag.hv{ background:var(--navy); color:#fff; }
+
+  .s-mini-timeline{ margin-top:10px; display:flex; gap:4px; flex-wrap:wrap; }
+  .s-mini-dot{ width:8px; height:8px; border-radius:50%; background:var(--ok); }
+
+  .modal-bg{ display:none; position:fixed; inset:0; background:rgba(7,23,41,0.6); align-items:flex-end; justify-content:center; z-index:50; }
+  .modal-bg.show{ display:flex; }
+  .modal{ background:var(--off-white); color:var(--navy); width:100%; max-width:480px; border-radius:16px 16px 0 0; padding:22px 22px 26px; max-height:90vh; overflow-y:auto; }
+  .modal h3{ font-family:'Oswald',sans-serif; font-size:18px; margin-bottom:4px; }
+  .modal p.hint{ font-size:12.5px; color:#6b7280; margin-bottom:14px; }
+  .modal select, .modal textarea{ width:100%; border:1px solid #d8d5cd; border-radius:8px; padding:10px 12px; font-family:'Inter',sans-serif; font-size:13.5px; margin-bottom:12px; background:#fff; }
+  .modal textarea{ min-height:80px; resize:vertical; }
+  .modal-actions{ display:flex; gap:10px; }
+  .modal-actions button{ flex:1; padding:11px; border-radius:8px; border:none; font-family:'Oswald',sans-serif; font-weight:600; font-size:12.5px; letter-spacing:0.03em; text-transform:uppercase; cursor:pointer; }
+  .m-cancel{ background:#e7e4db; color:var(--navy); }
+  .m-submit{ background:var(--navy); color:#fff; }
+
+  .media-attach{ margin-bottom:14px; }
+  .media-buttons{ display:flex; gap:10px; }
+  .media-btn{ flex:1; text-align:center; padding:12px 8px; border:1.5px dashed #c9c5b8; border-radius:10px; font-family:'Oswald',sans-serif; font-weight:600; font-size:12.5px; letter-spacing:0.03em; color:var(--navy); background:#fff; cursor:pointer; }
+  .media-hint{ font-size:11px; color:#8a8676; margin-top:8px; }
+  .media-preview{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .media-thumb{ position:relative; width:64px; height:64px; border-radius:8px; overflow:hidden; background:#e7e4db; border:1px solid var(--line-light); }
+  .media-thumb img, .media-thumb video{ width:100%; height:100%; object-fit:cover; }
+  .media-thumb .media-tag{ position:absolute; bottom:2px; left:2px; font-family:'IBM Plex Mono',monospace; font-size:8.5px; background:rgba(11,37,69,0.75); color:#fff; padding:1px 4px; border-radius:3px; }
+  .media-thumb .media-remove{ position:absolute; top:2px; right:2px; width:18px; height:18px; background:rgba(11,37,69,0.85); color:#fff; border:none; border-radius:50%; font-size:11px; line-height:1; cursor:pointer; }
+
+  .novedad-card{ background:#fff; border:1px solid var(--line-light); border-left:4px solid var(--gold); border-radius:10px; padding:14px 16px; margin-bottom:12px; }
+  .novedad-card.cat-grave{ border-left-color:var(--skip); }
+  .novedad-card.cat-moderado{ border-left-color:var(--late); }
+  .novedad-card.cat-menor{ border-left-color:#9aa5b1; }
+  .novedad-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+  .novedad-meta{ font-size:12.5px; color:#6b7280; }
+  .novedad-meta strong{ color:var(--navy); }
+  .novedad-cat-badge{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; padding:3px 9px; border-radius:20px; white-space:nowrap; }
+  .novedad-cat-badge.cat-grave{ background:rgba(179,65,59,0.12); color:var(--skip); }
+  .novedad-cat-badge.cat-moderado{ background:rgba(201,162,39,0.15); color:#8a6d00; }
+  .novedad-cat-badge.cat-menor{ background:#eef0f2; color:#6b7280; }
+  .novedad-desc{ font-size:13.5px; margin-top:8px; line-height:1.5; }
+  .novedad-media{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .novedad-media .media-thumb{ width:72px; height:72px; }
+  .novedad-empty{ color:#6b7280; font-size:13px; }
+
+  .map-controls{ display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+  .map-controls select{ padding:8px 12px; border-radius:8px; border:1px solid var(--line-light); background:#fff; font-family:'Inter',sans-serif; font-size:13px; color:var(--navy); }
+  .map-legend{ font-size:11.5px; color:#6b7280; display:flex; gap:14px; align-items:center; }
+  .map-legend .dot{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+  #ronda-map, #ronda-map-admin{ width:100%; height:380px; border-radius:12px; overflow:hidden; border:1px solid var(--line-light); }
+  .map-empty{ padding:40px 10px; text-align:center; color:#6b7280; font-size:13px; background:#fff; border-radius:12px; border:1px solid var(--line-light); }
+  .map-ronda-info{ background:#fff; border:1px solid var(--line-light); border-left:4px solid var(--gold); border-radius:10px; padding:10px 14px; margin-bottom:10px; font-size:13px; color:var(--navy); }
+  .map-ronda-info strong{ font-family:'Oswald',sans-serif; }
+  .leaflet-popup-content{ font-family:'Inter',sans-serif; font-size:12.5px; }
+
+  .toast{ position:fixed; top:16px; left:50%; transform:translateX(-50%); background:var(--navy-deep); color:var(--gold-soft); padding:10px 18px; border-radius:8px; font-family:'IBM Plex Mono',monospace; font-size:12.5px; z-index:100; opacity:0; pointer-events:none; transition:opacity .25s, transform .25s; max-width:90vw; text-align:center; }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(4px); }
+
+  @media (max-width:640px){ .s-summary{ grid-template-columns:repeat(2,1fr); } .s-summary .s-card:last-child{ grid-column: 1 / -1; } }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="brandbar">
+    <span class="brand-dot"></span>
+    <span class="brand-name">CSP Control</span>
+    <button id="modo-prueba-toggle" class="modo-prueba-toggle">🧪 Modo prueba: <strong id="modo-prueba-estado">OFF</strong></button>
+  </div>
+
+  <div class="tabbar">
+    <div class="tab active" data-view="guardia">Vista Guardia</div>
+    <div class="tab" data-view="supervisor">Vista Supervisor</div>
+    <div class="tab" data-view="administracion">Vista Administración</div>
+  </div>
+
+  <!-- ============ GUARD VIEW ============ -->
+  <div id="view-guardia" class="active">
+    <div class="g-header">
+      <div class="g-eyebrow" id="g-eyebrow-turno">Turno en curso</div>
+      <div class="g-title" id="g-sitio-nombre">—</div>
+      <div class="g-sub" id="g-turno-meta">—</div>
+      <div id="g-guardias-bloque" style="display:none; margin-top:10px;">
+        <ul class="g-guardias-lista" id="g-guardias-lista"></ul>
+        <div style="display:flex; gap:6px; margin-top:8px;">
+          <input type="text" id="input-guardia-extra" list="lista-guardias-conocidos" placeholder="Nombre del guardia que llega..." autocomplete="off" style="flex:1; font-size:12.5px; padding:8px 10px;">
+          <button id="btn-agregar-guardia-extra" style="flex-shrink:0; background:rgba(245,243,238,0.08); border:1px solid var(--line); color:var(--off-white); padding:0 12px; border-radius:6px; font-family:'Oswald',sans-serif; font-weight:600; font-size:12px; cursor:pointer;">+ Sumar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="g-switcher" id="g-switcher"></div>
+
+    <div id="turno-inicio-pantalla" style="display:none; padding:24px 20px;">
+      <div class="inicio-turno-card">
+        <div class="g-eyebrow" id="inicio-turno-label">Turno</div>
+        <div class="g-title" style="margin-bottom:4px;" id="inicio-turno-sitio">—</div>
+        <div class="g-sub" id="inicio-turno-horario" style="margin-bottom:18px;">—</div>
+        <label style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:rgba(245,243,238,0.5); text-transform:uppercase; letter-spacing:0.05em;">Guardia(s) presente(s) en este turno</label>
+        <div style="display:flex; gap:8px; margin-top:6px;">
+          <input type="text" id="input-nombre-guardia" list="lista-guardias-conocidos" placeholder="Escribe un nombre..." autocomplete="off" style="flex:1;">
+          <button id="btn-agregar-guardia" style="flex-shrink:0; background:rgba(245,243,238,0.08); border:1px solid var(--line); color:var(--off-white); padding:0 16px; border-radius:8px; font-family:'Oswald',sans-serif; font-weight:600; cursor:pointer;">+ Agregar</button>
+        </div>
+        <datalist id="lista-guardias-conocidos"></datalist>
+        <div id="chips-guardias-turno" class="chips-guardias"></div>
+        <button class="mark-btn" id="btn-comenzar-turno" style="margin-top:14px;" disabled><span class="ic">▶</span>Comenzar Turno</button>
+      </div>
+    </div>
+
+    <div id="guardia-contenido">
+    <div class="g-note">
+      Marca tu ubicación cada vez que pases por un punto durante la ronda — no hay una ruta fija, tú decides cuándo marcar.
+    </div>
+
+    <div id="hv-unlock-banner">
+      <span>Toca para activar el sonido de las alertas en este celular</span>
+      <button id="btn-unlock-audio">🔔 Activar</button>
+    </div>
+
+    <div class="g-stats">
+      <div class="g-stat" id="g-stat-hv-wrap"><div class="g-stat-num" id="g-stat-hv">--</div><div class="g-stat-label">Próx. Guardia Activo</div></div>
+    </div>
+
+    <div class="ronda-status" id="ronda-status"></div>
+
+    <div class="mark-btn-wrap">
+      <button class="mark-btn ronda-start-btn" id="btn-iniciar-ronda"><span class="ic">▶</span>Iniciar Ronda</button>
+      <button class="mark-btn" id="btn-marcar-punto" style="display:none;"><span class="ic">📍</span>Marcar punto aquí</button>
+      <div class="mark-hint" id="mark-hint-text" style="display:none;">Registra tu ubicación GPS y la hora exacta en la bitácora</div>
+      <button class="mark-sim-btn" id="btn-marcar-sim" style="display:none;">Simular marca (demo, sin GPS real)</button>
+      <button class="ronda-end-btn" id="btn-finalizar-ronda" style="display:none;"><span class="ic">✓</span>Finalizar Ronda</button>
+    </div>
+
+    <div class="path-wrap">
+      <div id="rondas-list"></div>
+    </div>
+
+    <div class="g-actions">
+      <button class="action-btn btn-sos" id="btn-sos"><span class="ic">☎</span>SOS</button>
+      <button class="action-btn btn-hv" id="btn-hv"><span class="ic">◎</span>Guardia Activo</button>
+      <button class="action-btn btn-novedad" id="btn-novedad"><span class="ic">✎</span>Novedad</button>
+    </div>
+    <div class="g-actions" style="padding-top:0; border-top:none;">
+      <button class="action-btn btn-sos-whatsapp" id="btn-sos-whatsapp" style="display:none;">
+        <span class="ic">✓</span>Enviar ubicación por WhatsApp (respaldo)
+      </button>
+    </div>
+    <div id="sos-contactos-respaldo" style="display:none; padding:0 20px 14px;"></div>
+    </div>
+  </div>
+
+  <!-- ============ SUPERVISOR VIEW ============ -->
+  <div id="view-supervisor">
+    <div class="s-header">
+      <div class="s-eyebrow">CSP Control · en vivo</div>
+      <div class="s-title">Operación de hoy</div>
+      <div class="g-sub" id="s-fecha-hoy" style="color:#6b7280; margin-top:2px;">—</div>
+    </div>
+
+    <div class="s-summary">
+      <div class="s-card s-card-click" id="s-card-instalaciones"><div class="s-card-num" id="s-total-instalaciones">0</div><div class="s-card-label">Instalaciones activas</div></div>
+      <div class="s-card alert s-card-click" id="s-card-sos"><div class="s-card-num" id="s-total-sos">0</div><div class="s-card-label">SOS activos</div></div>
+      <div class="s-card alert s-card-click" id="s-card-hv"><div class="s-card-num" id="s-total-hv">0</div><div class="s-card-label">Guardia Activo pendiente</div></div>
+      <div class="s-card s-card-click" id="s-card-novedades"><div class="s-card-num" id="s-total-novedades">0</div><div class="s-card-label">Novedades</div></div>
+      <div class="s-card s-card-click" id="s-card-comunicaciones"><div class="s-card-num" id="s-total-comunicaciones">0</div><div class="s-card-label">Comunicaciones de Admin.</div></div>
+    </div>
+    <div id="s-summary-detail" class="s-summary-detail" style="display:none;"></div>
+
+    <div class="s-section-title">Instalaciones</div>
+    <div id="s-instalaciones-list"></div>
+
+    <div class="s-section-title">Mapa de rondas</div>
+    <div class="map-controls">
+      <select id="map-turno-select"></select>
+      <select id="map-ronda-select"></select>
+      <span id="map-puntos-count" style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#6b7280;"></span>
+      <div class="map-legend">
+        <span><span class="dot" style="background:#2E7D5B;"></span>Punto marcado</span>
+        <span><span class="dot" style="background:#D4AF37;"></span>Más reciente</span>
+        <span><span class="dot" style="background:#1B7C9E;"></span>Posición en vivo</span>
+      </div>
+    </div>
+    <div id="map-ronda-info" class="map-ronda-info" style="display:none;"></div>
+    <div id="ronda-map"></div>
+    <div id="ronda-map-empty" class="map-empty" style="display:none;">Esta ronda todavía no tiene puntos marcados para mostrar en el mapa.</div>
+
+    <div class="s-section-title">Novedades registradas</div>
+    <div id="s-novedades-list"></div>
+  </div>
+
+  <!-- ============ ADMINISTRACIÓN VIEW ============ -->
+  <div id="view-administracion">
+    <div class="s-header">
+      <div class="s-eyebrow">Vista Administración</div>
+      <div class="s-title" id="admin-sitio-nombre">—</div>
+      <div class="g-sub" id="admin-fecha-hoy" style="color:#6b7280; margin-top:2px;">—</div>
+    </div>
+
+    <div class="s-section-title">Guardia(s) de turno</div>
+    <div id="admin-guardias-turno"></div>
+
+    <div class="s-section-title">Rondas realizadas</div>
+    <div id="admin-rondas-lista"></div>
+
+    <div class="s-section-title">Mapa de rondas</div>
+    <div class="map-controls">
+      <select id="map-turno-select-admin"></select>
+      <select id="map-ronda-select-admin"></select>
+      <span id="map-puntos-count-admin" style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#6b7280;"></span>
+      <div class="map-legend">
+        <span><span class="dot" style="background:#2E7D5B;"></span>Punto marcado</span>
+        <span><span class="dot" style="background:#D4AF37;"></span>Más reciente</span>
+        <span><span class="dot" style="background:#1B7C9E;"></span>Posición en vivo</span>
+      </div>
+    </div>
+    <div id="map-ronda-info-admin" class="map-ronda-info" style="display:none;"></div>
+    <div id="ronda-map-admin"></div>
+    <div id="ronda-map-admin-empty" class="map-empty" style="display:none;">Esta ronda todavía no tiene puntos marcados para mostrar en el mapa.</div>
+
+    <div class="s-section-title">Novedades</div>
+    <div id="admin-novedades-lista"></div>
+
+    <div class="s-section-title">Observaciones y comunicaciones</div>
+    <div class="admin-obs-card">
+      <label>Tu nombre</label>
+      <input type="text" id="admin-obs-nombre" placeholder="Nombre de quien escribe...">
+      <label style="display:block; margin-top:10px;">Observación o comunicación para CSP</label>
+      <textarea id="admin-obs-mensaje" placeholder="Escribe aquí..."></textarea>
+      <button id="admin-obs-enviar">Publicar</button>
+    </div>
+    <div id="admin-obs-lista"></div>
+  </div>
+
+</div>
+
+<!-- Novedad modal -->
+<div class="modal-bg" id="modal-elegir-guardia">
+  <div class="modal">
+    <h3>¿Quién hace esta ronda?</h3>
+    <p class="hint">Hay más de un guardia en este turno — elige quién va a marcar los puntos.</p>
+    <div id="lista-guardias-ronda"></div>
+    <div class="modal-actions">
+      <button class="m-cancel" id="elegir-guardia-cancel" style="width:100%;">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-eliminar-guardia">
+  <div class="modal">
+    <h3>Eliminar guardia del turno</h3>
+    <p class="hint" id="eliminar-guardia-nombre">Guardia: —</p>
+    <label style="font-size:11.5px; color:#6b7280; text-transform:uppercase; letter-spacing:0.04em; font-family:'IBM Plex Mono',monospace;">Motivo de la baja (obligatorio)</label>
+    <textarea id="eliminar-guardia-motivo" placeholder="Explica por qué se retira este guardia del turno..." style="margin-top:6px;"></textarea>
+    <div class="modal-actions">
+      <button class="m-cancel" id="eliminar-guardia-cancelar">Cancelar</button>
+      <button class="m-submit" id="eliminar-guardia-confirmar" style="background:var(--skip);">Eliminar del turno</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-novedad">
+  <div class="modal">
+    <h3>Registrar novedad</h3>
+    <p class="hint" id="novedad-sitio-hint">Sitio: —</p>
+    <div id="novedad-guardia-wrap" style="display:none; margin-bottom:12px;">
+      <label style="font-size:11.5px; color:#6b7280; text-transform:uppercase; letter-spacing:0.04em; font-family:'IBM Plex Mono',monospace;">¿Quién reporta esta novedad?</label>
+      <select id="novedad-guardia-select" style="margin-top:4px;"></select>
+    </div>
+    <select id="novedad-categoria">
+      <option value="menor">Menor</option>
+      <option value="moderado">Moderado</option>
+      <option value="grave">Grave</option>
+    </select>
+    <textarea id="novedad-desc" placeholder="Describe lo ocurrido..."></textarea>
+
+    <div class="media-attach">
+      <div class="media-buttons">
+        <label class="media-btn">
+          📷 Foto
+          <input type="file" id="novedad-foto-input" accept="image/*" capture="environment" hidden>
+        </label>
+        <label class="media-btn">
+          🎥 Video
+          <input type="file" id="novedad-video-input" accept="video/*" capture="environment" hidden>
+        </label>
+      </div>
+      <div id="media-preview" class="media-preview"></div>
+      <p class="media-hint">Los videos se recomiendan cortos (máx. 30-60 seg) para que suban rápido con datos móviles.</p>
+    </div>
+
+    <div class="modal-actions">
+      <button class="m-cancel" id="novedad-cancel">Cancelar</button>
+      <button class="m-submit" id="novedad-submit">Guardar novedad</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ===================== DATA MODEL (simulado en memoria) =====================
+  // Ya NO hay checkpoints predefinidos. Cada turno acumula "puntos" libres:
+  // el guardia marca cuándo y dónde estuvo, sin una ruta fija que cumplir.
+  // ===================== FIREBASE =====================
+  const firebaseConfig = {
+    apiKey: "AIzaSyA3NupA37Hgoj7sHExcBaKv3B8NZRlAY0M",
+    authDomain: "csp-control.firebaseapp.com",
+    databaseURL: "https://csp-control-default-rtdb.firebaseio.com",
+    projectId: "csp-control",
+    storageBucket: "csp-control.firebasestorage.app",
+    messagingSenderId: "711004592456",
+    appId: "1:711004592456:web:9942aa86bb2eacc9c2fb7d"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  // Evita que al recibir nuestro propio guardado se dispare un ciclo de guardado infinito.
+  let sincronizandoDesdeFirebase = false;
+
+  function guardarTurnos(){
+    if(sincronizandoDesdeFirebase) return;
+    db.ref('turnos').set(turnos).catch(e=>console.error('Error guardando turnos:', e));
+  }
+  function guardarNovedades(){
+    if(sincronizandoDesdeFirebase) return;
+    db.ref('novedades').set(novedadesGuardadas).catch(e=>console.error('Error guardando novedades:', e));
+  }
+  function guardarObservaciones(){
+    if(sincronizandoDesdeFirebase) return;
+    db.ref('observaciones').set(observacionesAdmin).catch(e=>console.error('Error guardando observaciones:', e));
+  }
+  function guardarHistorialGuardias(){
+    if(sincronizandoDesdeFirebase) return;
+    db.ref('historialGuardias').set(historialNombresGuardias).catch(e=>console.error('Error guardando historial:', e));
+  }
+
+  const NOMBRE_SITIO_REAL = 'Condominio Jazmines del Parque II';
+
+  const turnos = [
+    { id:'turno1', tipoLabel:'Turno 1 (Día)', sitio:NOMBRE_SITIO_REAL, inicio:'07:00', fin:'19:00', guardiasPresentes:[], iniciado:false, rondas:[], sos:false, hvPendiente:false, _hvSegundosRestantes:0 },
+    { id:'turno2', tipoLabel:'Turno 2 (Noche)', sitio:NOMBRE_SITIO_REAL, inicio:'19:00', fin:'07:00', guardiasPresentes:[], iniciado:false, rondas:[], sos:false, hvPendiente:false, _hvSegundosRestantes:0 },
+  ];
+  function nombreGuardias(t){
+    return t.guardiasPresentes && t.guardiasPresentes.length ? t.guardiasPresentes.join(' y ') : '—';
+  }
+  // Cada elemento de "rondas": { numero, guardia, inicioMinuto, finMinuto (null = en curso), puntos:[{minuto,hora,lat,lng,precision,esSimulado}] }
+  function rondaActiva(t){
+    const ultima = t.rondas[t.rondas.length - 1];
+    return (ultima && ultima.finMinuto === null) ? ultima : null;
+  }
+  function todosLosPuntos(t){
+    // aplana todas las rondas en un solo arreglo, más reciente primero (para stats generales del turno)
+    const out = [];
+    for(let i = t.rondas.length - 1; i >= 0; i--){
+      out.push(...[...t.rondas[i].puntos].reverse());
+    }
+    return out;
+  }
+
+  // Historial de nombres de guardia para autocompletado (en producción vendría de Firebase)
+  let historialNombresGuardias = [];
+  function registrarNombreEnHistorial(nombre){
+    const limpio = nombre.trim();
+    if(limpio && !historialNombresGuardias.includes(limpio)){
+      historialNombresGuardias.push(limpio);
+      actualizarDatalistGuardias();
+      guardarHistorialGuardias();
+    }
+  }
+  function actualizarDatalistGuardias(){
+    const dl = document.getElementById('lista-guardias-conocidos');
+    if(!dl) return;
+    dl.innerHTML = '';
+    historialNombresGuardias.forEach(n=>{
+      const opt = document.createElement('option');
+      opt.value = n;
+      dl.appendChild(opt);
+    });
+  }
+
+  turnos.forEach(t=>{ t._minutosTranscurridos = 0; });
+
+  let turnoActivoId = 'turno1';
+
+  // Lista de contactos de emergencia — el primero es el que se llama automáticamente al tocar SOS.
+  // Para agregar más, solo hay que sumar objetos aquí: { nombre, numero } (numero sin '+' ni espacios).
+  const CONTACTOS_SOS = [
+    { nombre: 'Central CSP', numero: '59176324887' },
+  ];
+  const CONTACTO_SOS = CONTACTOS_SOS[0].numero; // compatibilidad con el resto del código
+
+  let posicionSimulada = { lat:-17.7695845, lng:-63.1991764, precision_m:8 };
+
+  function turno(id){ return turnos.find(t=>t.id===id); }
+
+  setInterval(()=>{
+    turnos.forEach(t=> t._minutosTranscurridos += 1);
+    renderGuardia();
+    renderSupervisor();
+    if(document.getElementById('view-administracion').classList.contains('active')){
+      renderAdministracion();
+      if(rondaMapAdmin) renderMapaAdmin();
+    }
+  }, 4000);
+
+  // ===================== RONDAS: iniciar / marcar / finalizar =====================
+  function horaCorta(){
+    return new Date().toLocaleTimeString('es-BO', {hour:'2-digit', minute:'2-digit'});
+  }
+
+  function duracionRonda(r){
+    const finTs = r.finTimestamp || Date.now();
+    const mins = Math.max(0, Math.round((finTs - r.inicioTimestamp) / 60000));
+    return mins + ' min';
+  }
+
+  function iniciarRonda(){
+    const t = turno(turnoActivoId);
+    if(rondaActiva(t)){ showToast('Ya hay una ronda en curso'); return; }
+    if(t.guardiasPresentes.length === 0){ showToast('No hay guardias registrados en este turno'); return; }
+    if(t.guardiasPresentes.length === 1){
+      crearRonda(t, t.guardiasPresentes[0]);
+    } else {
+      abrirSelectorGuardiaRonda(t);
+    }
+  }
+
+  function crearRonda(t, guardiaNombre){
+    t.rondas.push({
+      numero: t.rondas.length + 1,
+      guardia: guardiaNombre,
+      inicioMinuto: t._minutosTranscurridos,
+      finMinuto: null,
+      inicioTimestamp: Date.now(),
+      finTimestamp: null,
+      horaInicio: horaCorta(),
+      horaFin: null,
+      puntos: [],
+      trayectoria: []
+    });
+    showToast(`▶ Ronda ${t.rondas.length} iniciada · ${guardiaNombre}`);
+    iniciarTrackeoAutomatico(t);
+    guardarTurnos();
+    renderGuardia(); renderSupervisor();
+  }
+
+  // ===================== RASTREO AUTOMÁTICO DE FONDO (mientras hay una ronda activa) =====================
+  const TRACKEO_INTERVALO_MIN_MS = 15000; // como máximo una muestra cada ~15s
+  let watchIdTrayectoria = null;
+  let ultimaMuestraTrayectoria = 0;
+
+  function iniciarTrackeoAutomatico(t){
+    if(!navigator.geolocation) return;
+    detenerTrackeoAutomatico(); // por si quedó uno corriendo
+    ultimaMuestraTrayectoria = 0;
+    watchIdTrayectoria = navigator.geolocation.watchPosition(
+      pos => {
+        const ahora = Date.now();
+        if(ahora - ultimaMuestraTrayectoria < TRACKEO_INTERVALO_MIN_MS) return;
+        ultimaMuestraTrayectoria = ahora;
+        const r = rondaActiva(t); // siempre la ronda vigente, nunca una referencia vieja
+        if(!r){ detenerTrackeoAutomatico(); return; }
+        r.trayectoria.push({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          precision: Math.round(pos.coords.accuracy),
+          ts: ahora
+        });
+        if(rondaMap && document.getElementById('view-supervisor').classList.contains('active')) renderMapa();
+        if(rondaMapAdmin && document.getElementById('view-administracion').classList.contains('active')) renderMapaAdmin();
+        guardarTurnos();
+      },
+      err => { /* si falla el rastreo automático no interrumpe la ronda — el guardia sigue marcando puntos a mano */ },
+      { enableHighAccuracy:true, maximumAge:10000, timeout:20000 }
+    );
+  }
+
+  function detenerTrackeoAutomatico(){
+    if(watchIdTrayectoria !== null && navigator.geolocation){
+      navigator.geolocation.clearWatch(watchIdTrayectoria);
+      watchIdTrayectoria = null;
+    }
+  }
+
+  function abrirSelectorGuardiaRonda(t){
+    const wrap = document.getElementById('lista-guardias-ronda');
+    wrap.innerHTML = '';
+    t.guardiasPresentes.forEach(nombre=>{
+      const btn = document.createElement('button');
+      btn.className = 'm-submit';
+      btn.style.width = '100%';
+      btn.style.marginBottom = '8px';
+      btn.textContent = nombre;
+      btn.onclick = ()=>{
+        document.getElementById('modal-elegir-guardia').classList.remove('show');
+        crearRonda(t, nombre);
+      };
+      wrap.appendChild(btn);
+    });
+    document.getElementById('modal-elegir-guardia').classList.add('show');
+  }
+  document.getElementById('elegir-guardia-cancel').onclick = ()=>{
+    document.getElementById('modal-elegir-guardia').classList.remove('show');
+  };
+
+  function finalizarRonda(){
+    const t = turno(turnoActivoId);
+    const r = rondaActiva(t);
+    if(!r){ showToast('No hay ninguna ronda en curso'); return; }
+    if(r.puntos.length === 0){ showToast('Marca al menos un punto antes de finalizar la ronda'); return; }
+    r.finMinuto = t._minutosTranscurridos;
+    r.finTimestamp = Date.now();
+    r.horaFin = horaCorta();
+    detenerTrackeoAutomatico();
+    showToast(`✓ Ronda ${r.numero} finalizada · ${r.puntos.length} punto(s)`);
+    guardarTurnos();
+    renderGuardia(); renderSupervisor();
+  }
+
+  function marcarPunto(usarSimulada){
+    const t = turno(turnoActivoId);
+    const r = rondaActiva(t);
+    if(!r){ showToast('Primero inicia una ronda para poder marcar puntos'); return; }
+
+    const registrar = (lat, lng, precision, esSimulado) => {
+      r.puntos.unshift({
+        id: 'p'+Date.now(),
+        minuto: t._minutosTranscurridos,
+        hora: new Date().toLocaleTimeString('es-BO', {hour:'2-digit', minute:'2-digit', second:'2-digit'}),
+        lat, lng, precision, esSimulado: !!esSimulado
+      });
+      if(esSimulado){
+        showToast(`⚠ Sin GPS real — se guardó una ubicación de referencia (revisa señal/permiso)`);
+      } else {
+        showToast(`📍 Ronda ${r.numero} · punto registrado (±${precision}m)`);
+      }
+      renderGuardia(); renderSupervisor();
+      guardarTurnos();
+    };
+
+    if(usarSimulada){
+      registrar(posicionSimulada.lat, posicionSimulada.lng, posicionSimulada.precision_m, true);
+      return;
+    }
+    if(!navigator.geolocation){
+      registrar(posicionSimulada.lat, posicionSimulada.lng, posicionSimulada.precision_m, true);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => registrar(pos.coords.latitude, pos.coords.longitude, Math.round(pos.coords.accuracy), false),
+      err => {
+        showToast('⚠ No se pudo obtener GPS: ' + err.message + ' — intenta de nuevo en un lugar más despejado');
+        registrar(posicionSimulada.lat, posicionSimulada.lng, posicionSimulada.precision_m, true);
+      },
+      { enableHighAccuracy:true, timeout:15000, maximumAge:0 }
+    );
+  }
+  document.getElementById('btn-iniciar-ronda').onclick = iniciarRonda;
+  document.getElementById('btn-finalizar-ronda').onclick = finalizarRonda;
+
+  function renderChipsGuardias(){
+    const t = turno(turnoActivoId);
+    const wrap = document.getElementById('chips-guardias-turno');
+    wrap.innerHTML = '';
+    t.guardiasPresentes.forEach((nombre, idx)=>{
+      const chip = document.createElement('div');
+      chip.className = 'chip-guardia';
+      chip.innerHTML = `<span>${nombre}</span>`;
+      const rm = document.createElement('button');
+      rm.textContent = '×';
+      rm.onclick = ()=>{ t.guardiasPresentes.splice(idx,1); renderChipsGuardias(); };
+      chip.appendChild(rm);
+      wrap.appendChild(chip);
+    });
+    document.getElementById('btn-comenzar-turno').disabled = t.guardiasPresentes.length === 0;
+  }
+
+  function agregarGuardiaATurno(){
+    const t = turno(turnoActivoId);
+    const input = document.getElementById('input-nombre-guardia');
+    const nombre = input.value.trim();
+    if(!nombre) return;
+    if(t.guardiasPresentes.includes(nombre)){ showToast('Ese nombre ya está en la lista'); return; }
+    t.guardiasPresentes.push(nombre);
+    registrarNombreEnHistorial(nombre);
+    input.value = '';
+    input.focus();
+    renderChipsGuardias();
+  }
+  document.getElementById('btn-agregar-guardia').onclick = agregarGuardiaATurno;
+  document.getElementById('input-nombre-guardia').addEventListener('keydown', e=>{
+    if(e.key === 'Enter'){ e.preventDefault(); agregarGuardiaATurno(); }
+  });
+
+  function agregarGuardiaEnCurso(){
+    const t = turno(turnoActivoId);
+    const input = document.getElementById('input-guardia-extra');
+    const nombre = input.value.trim();
+    if(!nombre) return;
+    if(t.guardiasPresentes.includes(nombre)){ showToast('Ese nombre ya está en la lista'); return; }
+    t.guardiasPresentes.push(nombre);
+    registrarNombreEnHistorial(nombre);
+    input.value = '';
+    showToast(`${nombre} sumado a ${t.tipoLabel}`);
+    guardarTurnos();
+    renderGuardia(); renderSupervisor();
+  }
+  document.getElementById('btn-agregar-guardia-extra').onclick = agregarGuardiaEnCurso;
+  document.getElementById('input-guardia-extra').addEventListener('keydown', e=>{
+    if(e.key === 'Enter'){ e.preventDefault(); agregarGuardiaEnCurso(); }
+  });
+
+  let guardiaAEliminar = null;
+  function abrirEliminarGuardia(nombre){
+    guardiaAEliminar = nombre;
+    document.getElementById('eliminar-guardia-nombre').textContent = `Guardia: ${nombre}`;
+    document.getElementById('eliminar-guardia-motivo').value = '';
+    document.getElementById('modal-eliminar-guardia').classList.add('show');
+  }
+  document.getElementById('eliminar-guardia-cancelar').onclick = ()=>{
+    document.getElementById('modal-eliminar-guardia').classList.remove('show');
+    guardiaAEliminar = null;
+  };
+  document.getElementById('eliminar-guardia-confirmar').onclick = ()=>{
+    const t = turno(turnoActivoId);
+    const motivo = document.getElementById('eliminar-guardia-motivo').value.trim();
+    if(!motivo){ showToast('Escribe el motivo antes de confirmar'); return; }
+    if(!confirm(`¿Confirmas eliminar a ${guardiaAEliminar} de ${t.tipoLabel}?\n\nMotivo: ${motivo}`)) return;
+
+    t.guardiasPresentes = t.guardiasPresentes.filter(n=>n !== guardiaAEliminar);
+    // Queda registrado como novedad, para que el supervisor tenga trazabilidad del motivo.
+    const ahora = new Date();
+    novedadesGuardadas.unshift({
+      id: 'n'+Date.now(), turnoId: t.id, sitio: t.sitio, guardia: guardiaAEliminar,
+      categoria: 'moderado',
+      descripcion: `Guardia dado de baja del turno. Motivo: ${motivo}`,
+      fecha: ahora.toLocaleDateString('es-BO'),
+      hora: ahora.toLocaleTimeString('es-BO', {hour:'2-digit', minute:'2-digit'}),
+      minutosTurno: t._minutosTranscurridos, adjuntos: []
+    });
+
+    document.getElementById('modal-eliminar-guardia').classList.remove('show');
+    showToast(`${guardiaAEliminar} eliminado de ${t.tipoLabel}`);
+    guardiaAEliminar = null;
+    guardarTurnos();
+    guardarNovedades();
+    renderGuardia(); renderSupervisor();
+  };
+
+  function comenzarTurno(){
+    const t = turno(turnoActivoId);
+    if(t.guardiasPresentes.length === 0){ showToast('Agrega al menos un guardia para comenzar el turno'); return; }
+    t.iniciado = true;
+    showToast(`${t.tipoLabel} iniciado · ${nombreGuardias(t)}`);
+    guardarTurnos();
+    renderGuardia(); renderSupervisor();
+  }
+  document.getElementById('btn-comenzar-turno').onclick = comenzarTurno;
+  document.getElementById('btn-marcar-punto').onclick = ()=> marcarPunto(false);
+  document.getElementById('btn-marcar-sim').onclick = ()=> marcarPunto(true);
+
+  // ===================== RENDER: GUARD VIEW =====================
+  function renderSwitcher(){
+    const el = document.getElementById('g-switcher');
+    el.innerHTML = '';
+    turnos.forEach(t=>{
+      const b = document.createElement('button');
+      b.className = 'g-switch-btn' + (t.id===turnoActivoId ? ' active' : '');
+      b.textContent = !t.iniciado
+        ? `${t.tipoLabel} (sin iniciar)`
+        : (t.guardiasPresentes.length === 1 ? `${t.tipoLabel} · ${t.guardiasPresentes[0]}` : `${t.tipoLabel} (${t.guardiasPresentes.length} guardias)`);
+      b.onclick = ()=>{ turnoActivoId = t.id; renderGuardia(); };
+      el.appendChild(b);
+    });
+  }
+
+  function renderGuardia(){
+    renderSwitcher();
+    const t = turno(turnoActivoId);
+
+    document.getElementById('g-eyebrow-turno').textContent = `Turno en curso · ${new Date().toLocaleDateString('es-BO')} · ${new Date().toLocaleTimeString('es-BO', {hour:'2-digit', minute:'2-digit'})}`;
+
+    const pantallaInicio = document.getElementById('turno-inicio-pantalla');
+    const contenido = document.getElementById('guardia-contenido');
+
+    if(!t.iniciado){
+      pantallaInicio.style.display = 'block';
+      contenido.style.display = 'none';
+      document.getElementById('g-sitio-nombre').textContent = t.sitio;
+      document.getElementById('g-turno-meta').textContent = t.tipoLabel;
+      document.getElementById('inicio-turno-label').textContent = t.tipoLabel;
+      document.getElementById('inicio-turno-sitio').textContent = t.sitio;
+      document.getElementById('inicio-turno-horario').textContent = `${fechaLegibleHoy()} · Horario: ${t.inicio}–${t.fin}`;
+      actualizarDatalistGuardias();
+      renderChipsGuardias();
+      return;
+    }
+    pantallaInicio.style.display = 'none';
+    contenido.style.display = 'block';
+
+    document.getElementById('g-sitio-nombre').textContent = t.sitio;
+    document.getElementById('g-turno-meta').textContent = t.tipoLabel;
+
+    document.getElementById('g-guardias-bloque').style.display = 'block';
+    document.getElementById('g-guardias-lista').innerHTML = t.guardiasPresentes.map(n=>
+      `<li><span>${n}</span><button class="btn-quitar-guardia" data-nombre="${n}">Eliminar</button></li>`
+    ).join('');
+    document.querySelectorAll('.btn-quitar-guardia').forEach(btn=>{
+      btn.onclick = ()=> abrirEliminarGuardia(btn.dataset.nombre);
+    });
+
+    const r = rondaActiva(t);
+    const statusEl = document.getElementById('ronda-status');
+    document.getElementById('btn-iniciar-ronda').style.display = r ? 'none' : 'flex';
+    document.getElementById('btn-marcar-punto').style.display = r ? 'flex' : 'none';
+    document.getElementById('mark-hint-text').style.display = r ? 'block' : 'none';
+    document.getElementById('btn-marcar-sim').style.display = r ? 'block' : 'none';
+    document.getElementById('btn-finalizar-ronda').style.display = r ? 'flex' : 'none';
+
+    if(r){
+      statusEl.innerHTML = `<span class="badge-on"><span class="live-dot"></span>Ronda ${r.numero} en curso</span>`;
+    } else {
+      const n = t.rondas.length;
+      statusEl.innerHTML = `<span class="badge-off">${n === 0 ? 'Ninguna ronda iniciada todavía' : `${n} ronda(s) completada(s) — lista para iniciar la siguiente`}</span>`;
+    }
+
+    actualizarDisplayHV(t);
+
+    const list = document.getElementById('rondas-list');
+    list.innerHTML = '';
+    if(t.rondas.length === 0){
+      list.innerHTML = '<div class="punto-empty">Todavía no iniciaste ninguna ronda en este turno.</div>';
+      return;
+    }
+    // más reciente primero
+    for(let i = t.rondas.length - 1; i >= 0; i--){
+      const ronda = t.rondas[i];
+      const grupo = document.createElement('div');
+      grupo.className = 'ronda-group' + (ronda.finMinuto === null ? ' en-curso' : '');
+      const rango = ronda.horaFin
+        ? `${ronda.horaInicio} → ${ronda.horaFin} · ${duracionRonda(ronda)}`
+        : `${ronda.horaInicio} → en curso · ${duracionRonda(ronda)}`;
+      grupo.innerHTML = `
+        <div class="ronda-group-header">
+          <span class="ronda-group-title">Ronda ${ronda.numero}${t.guardiasPresentes.length > 1 ? ' · ' + ronda.guardia : ''}</span>
+          <span class="ronda-group-meta">${ronda.puntos.length} punto(s) · ${rango}</span>
+        </div>
+        <div class="ronda-group-body"><div class="ronda-group-line"></div></div>
+      `;
+      const body = grupo.querySelector('.ronda-group-body');
+      if(ronda.puntos.length === 0){
+        body.innerHTML += '<div class="punto-empty" style="padding:10px 0;">Sin puntos marcados en esta ronda.</div>';
+      } else {
+        ronda.puntos.forEach((p, idx)=>{
+          const row = document.createElement('div');
+          row.className = 'punto';
+          const nodeStyle = p.esSimulado ? 'background:transparent; border:2px dashed var(--skip); color:var(--skip);' : '';
+          row.innerHTML = `
+            <div class="punto-node" style="${nodeStyle}">${ronda.puntos.length - idx}</div>
+            <div class="punto-body">
+              <div class="punto-hora">${p.hora}</div>
+              <div class="punto-meta">min ${p.minuto} del turno · precisión GPS ±${p.precision}m${p.esSimulado ? ' · ⚠ sin señal GPS real' : ''}</div>
+            </div>
+          `;
+          body.appendChild(row);
+        });
+      }
+      list.appendChild(grupo);
+    }
+  }
+
+  // ===================== RENDER: SUPERVISOR VIEW =====================
+  function fechaLegibleHoy(){
+    return new Date().toLocaleDateString('es-BO', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  }
+
+  function renderSupervisor(){
+    document.getElementById('s-fecha-hoy').textContent = `${fechaLegibleHoy()} · ${new Date().toLocaleTimeString('es-BO', {hour:'2-digit', minute:'2-digit'})}`;
+
+    let totalSOS=0, totalHV=0;
+    turnos.forEach(t=>{
+      if(t.sos) totalSOS++;
+      if(t.hvPendiente) totalHV++;
+    });
+
+    document.getElementById('s-total-instalaciones').textContent = nombresInstalaciones().length;
+    document.getElementById('s-total-sos').textContent = totalSOS;
+    document.getElementById('s-total-hv').textContent = totalHV;
+    document.getElementById('s-total-novedades').textContent = novedadesGuardadas.length;
+    document.getElementById('s-total-comunicaciones').textContent = observacionesAdmin.length;
+
+    renderInstalaciones();
+    renderNovedades();
+    renderSummaryDetail();
+    if(rondaMap && document.getElementById('view-supervisor').classList.contains('active')) renderMapa();
+  }
+
+  // ===================== INSTALACIONES (agrupado por sitio, tocable) =====================
+  let instalacionesAbiertas = new Set();
+
+  function irAInstalacion(sitio){
+    summaryDetailAbierto = null;
+    renderSummaryDetail();
+    instalacionesAbiertas.add(sitio);
+    renderInstalaciones();
+    setTimeout(()=>{
+      document.querySelectorAll('.instalacion-nombre').forEach(el=>{
+        if(el.textContent === sitio) el.closest('.instalacion-card').scrollIntoView({behavior:'smooth', block:'start'});
+      });
+    }, 50);
+  }
+
+  function irAMapaDeRonda(turnoId, numeroRonda){
+    mapaTurnoSeleccionado = turnoId;
+    mapaRondaSeleccionada = String(numeroRonda);
+    if(!rondaMap) inicializarMapa();
+    const selectTurno = document.getElementById('map-turno-select');
+    if(selectTurno) selectTurno.value = turnoId;
+    poblarSelectorRondas();
+    if(rondaMap) rondaMap.invalidateSize();
+    renderMapa(true);
+    const mapEl = document.getElementById('ronda-map');
+    if(mapEl) mapEl.scrollIntoView({behavior:'smooth', block:'center'});
+    // el scroll suave cambia el layout mientras se anima — confirmamos tamaño
+    // y volvemos a encuadrar una vez que termina, para que no quede descentrado
+    setTimeout(()=>{
+      if(rondaMap){ rondaMap.invalidateSize(); renderMapa(true); }
+    }, 450);
+  }
+
+  function nombresInstalaciones(){
+    const vistos = [];
+    turnos.forEach(t=>{ if(!vistos.includes(t.sitio)) vistos.push(t.sitio); });
+    return vistos;
+  }
+
+  function renderInstalaciones(){
+    const wrap = document.getElementById('s-instalaciones-list');
+    wrap.innerHTML = '';
+
+    nombresInstalaciones().forEach(sitio=>{
+      const turnosDelSitio = turnos.filter(t=>t.sitio === sitio);
+      const sosActivo = turnosDelSitio.some(t=>t.sos);
+      const hvActivo = turnosDelSitio.some(t=>t.hvPendiente);
+      const hasAlert = sosActivo || hvActivo;
+      const tieneNovedad = !hasAlert && novedadesGuardadas.some(n=>n.sitio === sitio);
+      const abierta = instalacionesAbiertas.has(sitio);
+      const guardiasEnTurno = turnosDelSitio.filter(t=>t.iniciado);
+      const totalGuardiasEnTurno = guardiasEnTurno.reduce((acc,t)=>acc + t.guardiasPresentes.length, 0);
+
+      const estadoClase = hasAlert ? ' has-alert' : (tieneNovedad ? ' has-novedad' : '');
+      const badgeClase = hasAlert ? ' alert' : (tieneNovedad ? ' novedad' : '');
+      const badgeTexto = hasAlert ? 'Excepción' : (tieneNovedad ? 'Con Novedad' : 'Normal');
+
+      const card = document.createElement('div');
+      card.className = 'instalacion-card' + estadoClase;
+
+      const header = document.createElement('div');
+      header.className = 'instalacion-header';
+      header.innerHTML = `
+        <div>
+          <div class="instalacion-nombre">${sitio}</div>
+          <div class="instalacion-sub">${totalGuardiasEnTurno} guardia(s) en turno ahora</div>
+        </div>
+        <div class="instalacion-badge${badgeClase}">${badgeTexto}</div>
+      `;
+      header.onclick = ()=>{
+        if(instalacionesAbiertas.has(sitio)) instalacionesAbiertas.delete(sitio);
+        else instalacionesAbiertas.add(sitio);
+        renderInstalaciones();
+      };
+      card.appendChild(header);
+
+      if(abierta){
+        const body = document.createElement('div');
+        body.className = 'instalacion-body';
+
+        // 1. Guardia(s) de turno en tiempo real
+        const secGuardia = document.createElement('div');
+        secGuardia.innerHTML = `<div class="instalacion-section-title">Guardia(s) de turno</div>` + (guardiasEnTurno.length
+          ? guardiasEnTurno.flatMap(t=>t.guardiasPresentes.map(g=>`<div class="instalacion-line"><strong>${g}</strong> — ${t.tipoLabel}</div>`)).join('')
+          : `<div class="instalacion-line muted">Ningún guardia con turno iniciado.</div>`);
+        body.appendChild(secGuardia);
+
+        // 2. Rondas realizadas (cada ronda individual, tocable → lleva al mapa)
+        const secRondas = document.createElement('div');
+        const tituloRondas = document.createElement('div');
+        tituloRondas.className = 'instalacion-section-title';
+        tituloRondas.textContent = 'Rondas realizadas';
+        secRondas.appendChild(tituloRondas);
+
+        const hayRondas = turnosDelSitio.some(t=>t.rondas.length > 0);
+        if(!hayRondas){
+          const vacio = document.createElement('div');
+          vacio.className = 'instalacion-line muted';
+          vacio.textContent = 'Sin rondas registradas todavía.';
+          secRondas.appendChild(vacio);
+        } else {
+          turnosDelSitio.forEach(t=>{
+            if(t.rondas.length === 0) return;
+            const subtitulo = document.createElement('div');
+            subtitulo.className = 'instalacion-line';
+            subtitulo.innerHTML = `<strong>${t.tipoLabel}</strong>`;
+            secRondas.appendChild(subtitulo);
+            // más reciente primero
+            for(let i = t.rondas.length - 1; i >= 0; i--){
+              const r = t.rondas[i];
+              const linea = document.createElement('div');
+              linea.className = 'instalacion-line clickable';
+              linea.style.paddingLeft = '10px';
+              const rangoHora = r.horaFin ? `${r.horaInicio} → ${r.horaFin}` : `${r.horaInicio} → en curso`;
+              linea.textContent = `→ Ronda ${r.numero}${t.guardiasPresentes.length > 1 ? ' · ' + r.guardia : ''} · ${rangoHora} · ${duracionRonda(r)} · ${r.puntos.length} punto(s)`;
+              linea.onclick = ()=> irAMapaDeRonda(t.id, r.numero);
+              secRondas.appendChild(linea);
+            }
+          });
+        }
+        body.appendChild(secRondas);
+
+        // 3. Novedades
+        const novedadesDelSitio = novedadesGuardadas.filter(n=>n.sitio === sitio);
+        const secNovedades = document.createElement('div');
+        const tituloNov = document.createElement('div');
+        tituloNov.className = 'instalacion-section-title';
+        tituloNov.textContent = 'Novedades';
+        secNovedades.appendChild(tituloNov);
+
+        if(novedadesDelSitio.length === 0){
+          const vacio = document.createElement('div');
+          vacio.className = 'instalacion-line muted';
+          vacio.textContent = 'Sin novedades registradas.';
+          secNovedades.appendChild(vacio);
+        } else {
+          novedadesDelSitio.slice(0,5).forEach(n=>{
+            const item = document.createElement('div');
+            item.className = 'instalacion-novedad-item';
+            const resumen = n.descripcion.length > 90 ? n.descripcion.slice(0,90)+'…' : n.descripcion;
+            item.innerHTML = `
+              <div class="instalacion-line"><strong>${n.categoria}</strong> — ${n.guardia} · ${n.fecha} ${n.hora}</div>
+              <div class="instalacion-line" style="padding-top:0; color:#4b5563;">${resumen}</div>
+            `;
+            if(n.adjuntos && n.adjuntos.length){
+              const media = document.createElement('div');
+              media.className = 'novedad-media';
+              n.adjuntos.forEach(a=>{
+                const thumb = document.createElement('div');
+                thumb.className = 'media-thumb';
+                thumb.innerHTML = a.tipo==='foto' ? `<img src="${a.url}" alt="foto novedad">` : `<video src="${a.url}" muted controls></video>`;
+                const tag = document.createElement('span');
+                tag.className = 'media-tag';
+                tag.textContent = a.tipo==='foto' ? 'FOTO' : 'VIDEO';
+                thumb.appendChild(tag);
+                media.appendChild(thumb);
+              });
+              item.appendChild(media);
+            }
+            secNovedades.appendChild(item);
+          });
+        }
+        body.appendChild(secNovedades);
+
+        // 4. Guardia Activo
+        const hvTurnos = turnosDelSitio.filter(t=>t.hvPendiente);
+        const secHV = document.createElement('div');
+        secHV.innerHTML = `<div class="instalacion-section-title">Guardia Activo</div>` + (hvTurnos.length
+          ? hvTurnos.map(t=>`<div class="instalacion-line alert-text">⚠ Pendiente — ${t.tipoLabel} (${nombreGuardias(t)})</div>`).join('')
+          : `<div class="instalacion-line muted">Sin alertas de Guardia Activo.</div>`);
+        body.appendChild(secHV);
+
+        // 5. SOS activas
+        const sosTurnos = turnosDelSitio.filter(t=>t.sos);
+        const secSOS = document.createElement('div');
+        secSOS.innerHTML = `<div class="instalacion-section-title">SOS</div>` + (sosTurnos.length
+          ? sosTurnos.map(t=>`<div class="instalacion-line alert-text">🆘 Activo — ${t.tipoLabel}</div>`).join('')
+          : `<div class="instalacion-line muted">Sin SOS activos.</div>`);
+        body.appendChild(secSOS);
+
+        // 6. Observaciones de Administración — hilo de conversación completo
+        const obsDelSitio = observacionesAdmin.filter(o=>o.sitio === sitio);
+        const secObs = document.createElement('div');
+        const tituloObs = document.createElement('div');
+        tituloObs.className = 'instalacion-section-title';
+        tituloObs.textContent = 'Observaciones de Administración';
+        secObs.appendChild(tituloObs);
+
+        if(obsDelSitio.length === 0){
+          const vacio = document.createElement('div');
+          vacio.className = 'instalacion-line muted';
+          vacio.textContent = 'Sin observaciones registradas.';
+          secObs.appendChild(vacio);
+        } else {
+          obsDelSitio.slice(0,5).forEach(hilo=>{
+            const item = document.createElement('div');
+            item.className = 'obs-item-supervisor';
+
+            hilo.mensajes.forEach(m=>{
+              const msg = document.createElement('div');
+              msg.className = 'obs-mensaje ' + (m.rol === 'csp' ? 'obs-mensaje-csp' : 'obs-mensaje-admin');
+              msg.innerHTML = `<strong>${m.rol === 'csp' ? 'CSP' : m.autor}</strong> · ${tiempoRelativo(m.ts, m.fecha, m.hora)}<br>${m.mensaje}`;
+              item.appendChild(msg);
+            });
+
+            const formResp = document.createElement('div');
+            formResp.className = 'obs-form-respuesta';
+            formResp.innerHTML = `
+              <textarea placeholder="Responder como CSP..."></textarea>
+              <button class="obs-enviar-respuesta">Enviar respuesta</button>
+            `;
+            formResp.querySelector('.obs-enviar-respuesta').onclick = ()=>{
+              const texto = formResp.querySelector('textarea').value.trim();
+              if(!texto){ showToast('Escribe una respuesta antes de enviar'); return; }
+              hilo.mensajes.push(crearMensajeHilo('CSP', 'csp', texto));
+              showToast('Respuesta enviada a Administración');
+              guardarObservaciones();
+              renderInstalaciones();
+              renderAdministracion();
+            };
+            item.appendChild(formResp);
+            secObs.appendChild(item);
+          });
+        }
+        body.appendChild(secObs);
+
+        card.appendChild(body);
+      }
+
+      wrap.appendChild(card);
+    });
+  }
+
+  // ===================== TARJETAS RESUMEN TOCABLES =====================
+  let summaryDetailAbierto = null; // 'instalaciones' | 'sos' | 'hv' | 'novedades' | null
+
+  function toggleSummaryDetail(tipo){
+    summaryDetailAbierto = (summaryDetailAbierto === tipo) ? null : tipo;
+    renderSummaryDetail();
+  }
+  document.getElementById('s-card-instalaciones').onclick = ()=> toggleSummaryDetail('instalaciones');
+  document.getElementById('s-card-sos').onclick = ()=> toggleSummaryDetail('sos');
+  document.getElementById('s-card-hv').onclick = ()=> toggleSummaryDetail('hv');
+  document.getElementById('s-card-novedades').onclick = ()=> toggleSummaryDetail('novedades');
+  document.getElementById('s-card-comunicaciones').onclick = ()=> toggleSummaryDetail('comunicaciones');
+
+  function renderSummaryDetail(){
+    const panel = document.getElementById('s-summary-detail');
+    ['s-card-instalaciones','s-card-sos','s-card-hv','s-card-novedades','s-card-comunicaciones'].forEach(id=>document.getElementById(id).classList.remove('open'));
+    if(!summaryDetailAbierto){ panel.style.display='none'; panel.innerHTML=''; return; }
+    document.getElementById('s-card-'+summaryDetailAbierto).classList.add('open');
+    panel.style.display = 'block';
+
+    if(summaryDetailAbierto === 'instalaciones'){
+      const nombres = nombresInstalaciones();
+      const titulo = document.createElement('div');
+      titulo.className = 's-summary-detail-title';
+      titulo.textContent = 'Clientes usando CSP Control:';
+      panel.innerHTML = '';
+      panel.appendChild(titulo);
+      if(nombres.length === 0){
+        const vacio = document.createElement('div');
+        vacio.className = 's-summary-detail-empty';
+        vacio.textContent = 'Ninguna instalación registrada todavía.';
+        panel.appendChild(vacio);
+      } else {
+        nombres.forEach(sitio=>{
+          const turnosDelSitio = turnos.filter(t=>t.sitio===sitio);
+          const enTurno = turnosDelSitio.filter(t=>t.iniciado).reduce((acc,t)=>acc + t.guardiasPresentes.length, 0);
+          const item = document.createElement('div');
+          item.className = 's-summary-detail-item clickable';
+          item.innerHTML = `<strong>${sitio}</strong><span>${enTurno} guardia(s) en turno ahora</span>`;
+          item.onclick = ()=> irAInstalacion(sitio);
+          panel.appendChild(item);
+        });
+      }
+    } else if(summaryDetailAbierto === 'sos'){
+      const afectados = turnos.filter(t=>t.sos);
+      panel.innerHTML = `<div class="s-summary-detail-title">SOS activo en:</div>` + (afectados.length
+        ? afectados.map(t=>`<div class="s-summary-detail-item"><strong>${t.sitio}</strong><span>${t.tipoLabel}</span></div>`).join('')
+        : `<div class="s-summary-detail-empty">Ningún SOS activo por el momento.</div>`);
+    } else if(summaryDetailAbierto === 'hv'){
+      const afectados = turnos.filter(t=>t.hvPendiente);
+      panel.innerHTML = `<div class="s-summary-detail-title">Guardia Activo pendiente en:</div>` + (afectados.length
+        ? afectados.map(t=>`<div class="s-summary-detail-item"><strong>${t.sitio}</strong><span>${t.tipoLabel}${t.iniciado ? ' · '+nombreGuardias(t) : ''}</span></div>`).join('')
+        : `<div class="s-summary-detail-empty">Ningún check-in pendiente por el momento.</div>`);
+    } else if(summaryDetailAbierto === 'novedades'){
+      panel.innerHTML = `<div class="s-summary-detail-title">Novedades recientes:</div>` + (novedadesGuardadas.length
+        ? novedadesGuardadas.slice(0,6).map(n=>{
+            const resumen = n.descripcion.length > 90 ? n.descripcion.slice(0,90)+'…' : n.descripcion;
+            return `<div class="s-summary-detail-item"><strong>${n.sitio} — ${n.categoria}</strong><span>${n.guardia} · ${resumen}</span></div>`;
+          }).join('')
+        : `<div class="s-summary-detail-empty">Aún no se registraron novedades.</div>`);
+    } else if(summaryDetailAbierto === 'comunicaciones'){
+      const titulo = document.createElement('div');
+      titulo.className = 's-summary-detail-title';
+      titulo.textContent = 'Comunicaciones recibidas de Administración:';
+      panel.innerHTML = '';
+      panel.appendChild(titulo);
+      if(observacionesAdmin.length === 0){
+        const vacio = document.createElement('div');
+        vacio.className = 's-summary-detail-empty';
+        vacio.textContent = 'Todavía no se recibió ninguna.';
+        panel.appendChild(vacio);
+      } else {
+        observacionesAdmin.slice(0,6).forEach(hilo=>{
+          const ultimo = hilo.mensajes[hilo.mensajes.length - 1];
+          const resumen = ultimo.mensaje.length > 90 ? ultimo.mensaje.slice(0,90)+'…' : ultimo.mensaje;
+          const estado = ultimo.rol === 'admin' ? '⏳ CSP debe responder' : '✓ al día';
+          const item = document.createElement('div');
+          item.className = 's-summary-detail-item clickable';
+          item.innerHTML = `<strong>${hilo.sitio} — ${ultimo.rol === 'csp' ? 'CSP' : ultimo.autor}</strong><span>${tiempoRelativo(ultimo.ts, ultimo.fecha, ultimo.hora)} · ${resumen} · ${estado}</span>`;
+          item.onclick = ()=> irAInstalacion(hilo.sitio);
+          panel.appendChild(item);
+        });
+      }
+    }
+  }
+
+  function crearTarjetaNovedad(n){
+    const card = document.createElement('div');
+    card.className = 'novedad-card cat-'+n.categoria;
+    const top = document.createElement('div');
+    top.className = 'novedad-top';
+    top.innerHTML = `
+      <div class="novedad-meta"><strong>${n.sitio}</strong> · ${n.guardia} · ${n.fecha} ${n.hora}</div>
+      <div class="novedad-cat-badge cat-${n.categoria}">${n.categoria}</div>
+    `;
+    card.appendChild(top);
+    const desc = document.createElement('div');
+    desc.className = 'novedad-desc';
+    desc.textContent = n.descripcion;
+    card.appendChild(desc);
+    if(n.adjuntos && n.adjuntos.length){
+      const media = document.createElement('div');
+      media.className = 'novedad-media';
+      n.adjuntos.forEach(a=>{
+        const thumb = document.createElement('div');
+        thumb.className = 'media-thumb';
+        thumb.innerHTML = a.tipo==='foto' ? `<img src="${a.url}" alt="foto novedad">` : `<video src="${a.url}" muted controls></video>`;
+        const tag = document.createElement('span');
+        tag.className = 'media-tag';
+        tag.textContent = a.tipo==='foto' ? 'FOTO' : 'VIDEO';
+        thumb.appendChild(tag);
+        media.appendChild(thumb);
+      });
+      card.appendChild(media);
+    }
+    return card;
+  }
+
+  function renderNovedades(){
+    const wrap = document.getElementById('s-novedades-list');
+    wrap.innerHTML = '';
+    if(novedadesGuardadas.length === 0){
+      wrap.innerHTML = '<div class="novedad-empty">Aún no se registraron novedades.</div>';
+      return;
+    }
+    novedadesGuardadas.forEach(n=> wrap.appendChild(crearTarjetaNovedad(n)));
+  }
+
+  // ===================== VISTA ADMINISTRACIÓN (por instalación) =====================
+  let observacionesAdmin = [];
+
+  function renderAdministracion(){
+    const sitio = NOMBRE_SITIO_REAL;
+    document.getElementById('admin-sitio-nombre').textContent = sitio;
+    document.getElementById('admin-fecha-hoy').textContent =
+      `${fechaLegibleHoy()} · ${new Date().toLocaleTimeString('es-BO', {hour:'2-digit', minute:'2-digit'})}`;
+
+    const turnosDelSitio = turnos.filter(t=>t.sitio === sitio);
+
+    // Guardia(s) de turno
+    const guardiasEnTurno = turnosDelSitio.filter(t=>t.iniciado);
+    document.getElementById('admin-guardias-turno').innerHTML = guardiasEnTurno.length
+      ? guardiasEnTurno.flatMap(t=>t.guardiasPresentes.map(g=>`<div class="instalacion-line"><strong>${g}</strong> — ${t.tipoLabel}</div>`)).join('')
+      : `<div class="instalacion-line muted">Ningún guardia con turno iniciado.</div>`;
+
+    // Rondas realizadas (listado, con quién/hora/duración)
+    let rondasHtml = '';
+    turnosDelSitio.forEach(t=>{
+      if(t.rondas.length === 0) return;
+      rondasHtml += `<div class="instalacion-line"><strong>${t.tipoLabel}</strong></div>`;
+      for(let i = t.rondas.length - 1; i >= 0; i--){
+        const r = t.rondas[i];
+        const rangoHora = r.horaFin ? `${r.horaInicio} → ${r.horaFin}` : `${r.horaInicio} → en curso`;
+        rondasHtml += `<div class="instalacion-line" style="padding-left:12px;">→ Ronda ${r.numero}${t.guardiasPresentes.length > 1 ? ' · '+r.guardia : ''} · ${rangoHora} · ${duracionRonda(r)} · ${r.puntos.length} punto(s)</div>`;
+      }
+    });
+    document.getElementById('admin-rondas-lista').innerHTML = rondasHtml || `<div class="instalacion-line muted">Sin rondas registradas todavía.</div>`;
+
+    // Novedades (con foto/video)
+    const wrapNov = document.getElementById('admin-novedades-lista');
+    wrapNov.innerHTML = '';
+    const novedadesDelSitio = novedadesGuardadas.filter(n=>n.sitio === sitio);
+    if(novedadesDelSitio.length === 0){
+      wrapNov.innerHTML = `<div class="instalacion-line muted">Sin novedades registradas.</div>`;
+    } else {
+      novedadesDelSitio.forEach(n=> wrapNov.appendChild(crearTarjetaNovedad(n)));
+    }
+
+    // Observaciones y comunicaciones de Administración
+    const wrapObs = document.getElementById('admin-obs-lista');
+    wrapObs.innerHTML = '';
+    const obsDelSitio = observacionesAdmin.filter(o=>o.sitio === sitio);
+    if(obsDelSitio.length === 0){
+      wrapObs.innerHTML = `<div class="instalacion-line muted">Todavía no se registraron observaciones.</div>`;
+    } else {
+      obsDelSitio.forEach(hilo=>{
+        const item = document.createElement('div');
+        item.className = 'admin-obs-item';
+
+        hilo.mensajes.forEach(m=>{
+          const msg = document.createElement('div');
+          msg.className = 'obs-mensaje ' + (m.rol === 'csp' ? 'obs-mensaje-csp' : 'obs-mensaje-admin');
+          msg.innerHTML = `<strong>${m.rol === 'csp' ? 'CSP' : m.autor}</strong> · ${tiempoRelativo(m.ts, m.fecha, m.hora)}<br>${m.mensaje}`;
+          item.appendChild(msg);
+        });
+
+        const formCont = document.createElement('div');
+        formCont.className = 'obs-form-respuesta';
+        formCont.innerHTML = `
+          <input type="text" placeholder="Tu nombre..." class="obs-cont-nombre">
+          <textarea placeholder="Seguir esta conversación..." style="margin-top:6px;"></textarea>
+          <button class="obs-enviar-respuesta">Enviar</button>
+        `;
+        formCont.querySelector('.obs-enviar-respuesta').onclick = ()=>{
+          const nombreCont = formCont.querySelector('.obs-cont-nombre').value.trim();
+          const texto = formCont.querySelector('textarea').value.trim();
+          if(!nombreCont || !texto){ showToast('Escribe tu nombre y el mensaje'); return; }
+          hilo.mensajes.push(crearMensajeHilo(nombreCont, 'admin', texto));
+          showToast('Mensaje enviado');
+          guardarObservaciones();
+          renderAdministracion();
+          renderSupervisor();
+        };
+        item.appendChild(formCont);
+        wrapObs.appendChild(item);
+      });
+    }
+  }
+
+  function crearMensajeHilo(autor, rol, texto){
+    const ahora = new Date();
+    return {
+      autor, rol, mensaje: texto,
+      fecha: ahora.toLocaleDateString('es-BO'),
+      hora: ahora.toLocaleTimeString('es-BO', {hour:'2-digit', minute:'2-digit'}),
+      ts: ahora.getTime()
+    };
+  }
+
+  function tiempoRelativo(ts, fechaFallback, horaFallback){
+    if(!ts) return `${fechaFallback} ${horaFallback}`;
+    const diffMin = Math.floor((Date.now() - ts) / 60000);
+    if(diffMin < 1) return 'justo ahora';
+    if(diffMin < 60) return `hace ${diffMin} min`;
+    const diffH = Math.floor(diffMin / 60);
+    if(diffH < 24) return `hace ${diffH} h`;
+    const diffD = Math.floor(diffH / 24);
+    if(diffD < 7) return `hace ${diffD} d`;
+    return `${fechaFallback} ${horaFallback}`;
+  }
+
+  document.getElementById('admin-obs-enviar').onclick = ()=>{
+    const nombre = document.getElementById('admin-obs-nombre').value.trim();
+    const mensaje = document.getElementById('admin-obs-mensaje').value.trim();
+    if(!nombre || !mensaje){ showToast('Escribe tu nombre y el mensaje antes de publicar'); return; }
+    observacionesAdmin.unshift({
+      id: 'o'+Date.now(), sitio: NOMBRE_SITIO_REAL,
+      mensajes: [ crearMensajeHilo(nombre, 'admin', mensaje) ]
+    });
+    document.getElementById('admin-obs-mensaje').value = '';
+    showToast('Observación publicada');
+    guardarObservaciones();
+    renderAdministracion();
+    renderSupervisor();
+  };
+
+  document.querySelector('.tab[data-view="administracion"]').addEventListener('click', ()=> renderAdministracion());
+
+  // ===================== MAPA DE RONDAS (Leaflet + OpenStreetMap) =====================
+  let rondaMap = null;
+  let rondaMapLayer = null;
+  let mapaTurnoSeleccionado = 'turno1';
+  let mapaRondaSeleccionada = 'todas';
+
+  function textoOpcionTurno(t){
+    return t.iniciado ? t.tipoLabel : `${t.tipoLabel} (sin iniciar)`;
+  }
+
+  function actualizarTextosSelectorTurno(){
+    const selectTurno = document.getElementById('map-turno-select');
+    if(!selectTurno) return;
+    Array.from(selectTurno.options).forEach(opt=>{
+      const t = turno(opt.value);
+      if(t) opt.textContent = textoOpcionTurno(t);
+    });
+  }
+
+  function inicializarMapa(){
+    // Se destruye y se vuelve a crear cada vez: así el mapa SIEMPRE se construye
+    // con el contenedor ya visible y con su tamaño real, evitando el bug de
+    // renderizador con tamaño 0x0 que ocurre al crear mapas en contenedores ocultos.
+    if(rondaMap){ rondaMap.remove(); rondaMap = null; }
+
+    rondaMap = L.map('ronda-map').setView([-17.7695845, -63.1991764], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap',
+      maxZoom: 19
+    }).addTo(rondaMap);
+    rondaMapLayer = L.layerGroup().addTo(rondaMap);
+
+    const selectTurno = document.getElementById('map-turno-select');
+    if(selectTurno.options.length === 0){
+      turnos.forEach(t=>{
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        opt.textContent = textoOpcionTurno(t);
+        selectTurno.appendChild(opt);
+      });
+      selectTurno.value = mapaTurnoSeleccionado;
+      selectTurno.onchange = ()=>{
+        mapaTurnoSeleccionado = selectTurno.value;
+        mapaRondaSeleccionada = 'todas';
+        poblarSelectorRondas();
+        renderMapa(true);
+      };
+    } else {
+      actualizarTextosSelectorTurno();
+    }
+    poblarSelectorRondas();
+  }
+
+  function poblarSelectorRondas(){
+    const t = turno(mapaTurnoSeleccionado);
+    const selectRonda = document.getElementById('map-ronda-select');
+    selectRonda.innerHTML = '';
+    const optTodas = document.createElement('option');
+    optTodas.value = 'todas';
+    optTodas.textContent = 'Todas las rondas';
+    selectRonda.appendChild(optTodas);
+    t.rondas.forEach(r=>{
+      const opt = document.createElement('option');
+      opt.value = String(r.numero);
+      opt.textContent = `Ronda ${r.numero}` + (r.finMinuto === null ? ' (en curso)' : '') + ` · ${r.puntos.length} pt`;
+      selectRonda.appendChild(opt);
+    });
+    // si la ronda seleccionada ya no existe para este turno, vuelve a "todas"
+    const valores = Array.from(selectRonda.options).map(o=>o.value);
+    if(!valores.includes(mapaRondaSeleccionada)) mapaRondaSeleccionada = 'todas';
+    selectRonda.value = mapaRondaSeleccionada;
+    selectRonda.onchange = ()=>{ mapaRondaSeleccionada = selectRonda.value; renderMapa(true); };
+  }
+
+  // Paleta para distinguir rondas cuando se muestran "todas" juntas
+  const PALETA_RONDAS = ['#0B2545', '#7A4FBF', '#1B7C9E', '#B3413B', '#2E7D5B', '#8a6d00'];
+
+  function renderMapa(ajustarVista){
+    if(!rondaMap) return;
+    rondaMap.invalidateSize();
+    actualizarTextosSelectorTurno();
+    const t = turno(mapaTurnoSeleccionado);
+    rondaMapLayer.clearLayers();
+
+    const rondasAMostrar = mapaRondaSeleccionada === 'todas'
+      ? t.rondas
+      : t.rondas.filter(r => String(r.numero) === mapaRondaSeleccionada);
+
+    const totalPuntosMarcados = rondasAMostrar.reduce((acc,r)=>acc + r.puntos.length, 0);
+    const totalTrayectoria = rondasAMostrar.reduce((acc,r)=>acc + (r.trayectoria ? r.trayectoria.length : 0), 0);
+    const totalPuntos = totalPuntosMarcados + totalTrayectoria;
+    document.getElementById('map-puntos-count').textContent =
+      `${rondasAMostrar.length} ronda(s) · ${totalPuntosMarcados} marcado(s)${totalTrayectoria ? ` · ${totalTrayectoria} de rastreo` : ''}`;
+
+    const infoEl = document.getElementById('map-ronda-info');
+    if(mapaRondaSeleccionada !== 'todas' && rondasAMostrar.length === 1){
+      const r = rondasAMostrar[0];
+      const rangoHora = r.horaFin ? `${r.horaInicio} → ${r.horaFin}` : `${r.horaInicio} → en curso`;
+      infoEl.innerHTML = `<strong>Ronda ${r.numero}</strong> · ${r.guardia} · ${rangoHora} · ${duracionRonda(r)} · ${r.puntos.length} punto(s)`;
+      infoEl.style.display = 'block';
+    } else {
+      infoEl.style.display = 'none';
+    }
+
+    if(totalPuntos === 0){
+      document.getElementById('ronda-map').style.display = 'none';
+      document.getElementById('ronda-map-empty').style.display = 'block';
+      return;
+    }
+    document.getElementById('ronda-map').style.display = 'block';
+    document.getElementById('ronda-map-empty').style.display = 'none';
+
+    let todosLosLatlngs = [];
+
+    try{
+      rondasAMostrar.forEach((ronda, ri) => {
+        const colorLinea = mapaRondaSeleccionada === 'todas' ? PALETA_RONDAS[ri % PALETA_RONDAS.length] : '#0B2545';
+
+        // Trayectoria automática (rastreo de fondo mientras la ronda estuvo activa)
+        if(ronda.trayectoria && ronda.trayectoria.length){
+          const trLatLngs = ronda.trayectoria.map(p=>[p.lat, p.lng]);
+          todosLosLatlngs = todosLosLatlngs.concat(trLatLngs);
+          if(trLatLngs.length > 1){
+            L.polyline(trLatLngs, { color:'#1B7C9E', weight:2, opacity:0.5 }).addTo(rondaMapLayer);
+          }
+          // Posición en vivo: solo si esta ronda sigue en curso
+          if(ronda.finMinuto === null){
+            const ultima = ronda.trayectoria[ronda.trayectoria.length - 1];
+            const iconoLive = L.divIcon({
+              className: 'live-position-marker',
+              html: `<div class="live-position-dot"></div>`,
+              iconSize: [18,18], iconAnchor: [9,9]
+            });
+            L.marker([ultima.lat, ultima.lng], { icon: iconoLive }).addTo(rondaMapLayer)
+              .bindPopup(`<strong>Posición en vivo</strong><br>Ronda ${ronda.numero} · ${ronda.guardia}<br>±${ultima.precision}m GPS`);
+          }
+        }
+
+        if(ronda.puntos.length === 0) return;
+        const cronologico = [...ronda.puntos].reverse(); // orden cronológico dentro de ESTA ronda
+        const latlngs = cronologico.map(p=>[p.lat, p.lng]);
+        todosLosLatlngs = todosLosLatlngs.concat(latlngs);
+
+        if(latlngs.length > 1){
+          L.polyline(latlngs, { color: colorLinea, weight:3, opacity:0.65, dashArray:'6,6' }).addTo(rondaMapLayer);
+        }
+
+        cronologico.forEach((p, idx)=>{
+          const esUltimo = idx === cronologico.length - 1;
+          const color = p.esSimulado ? '#B3413B' : (esUltimo ? '#D4AF37' : '#2E7D5B');
+          const tam = esUltimo ? 24 : 20;
+          const borde = p.esSimulado ? '2.5px dashed #fff' : '2.5px solid #fff';
+          const icono = L.divIcon({
+            className: 'punto-dot-marker',
+            html: `<div style="width:${tam}px; height:${tam}px; border-radius:50%; background:${color}; border:${borde}; box-shadow:0 1px 4px rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:${tam>20?11:10}px; font-weight:600;">${idx+1}</div>`,
+            iconSize: [tam, tam],
+            iconAnchor: [tam/2, tam/2]
+          });
+          const marker = L.marker([p.lat, p.lng], { icon: icono, zIndexOffset: idx }).addTo(rondaMapLayer);
+          marker.bindPopup(`<strong>Ronda ${ronda.numero} · Punto ${idx+1}</strong><br>${p.hora}<br>min ${p.minuto} del turno<br>±${p.precision}m GPS${p.esSimulado ? '<br>⚠ sin señal GPS real' : ''}`);
+        });
+      });
+    } catch(e){
+      showToast('Error al dibujar el mapa: ' + e.message);
+    }
+
+    if(ajustarVista){
+      try{
+        if(todosLosLatlngs.length === 1){
+          rondaMap.setView(todosLosLatlngs[0], 17);
+        } else if(todosLosLatlngs.length > 1){
+          rondaMap.fitBounds(todosLosLatlngs, { padding:[30,30], maxZoom:18 });
+        }
+      } catch(e){
+        if(todosLosLatlngs.length) rondaMap.setView(todosLosLatlngs[todosLosLatlngs.length-1], 16);
+        showToast('Mapa: encuadre automático falló, centrado en el último punto');
+      }
+    }
+  }
+
+  // Se inicializa al entrar a la pestaña Supervisor (Leaflet necesita el contenedor visible con tamaño real)
+  document.querySelector('.tab[data-view="supervisor"]').addEventListener('click', ()=>{
+    setTimeout(()=>{
+      inicializarMapa();
+      if(rondaMap) rondaMap.invalidateSize(); // primero: que el mapa sepa su tamaño real ya visible
+      renderMapa(true); // después: recién ahí calculamos el encuadre (fitBounds) correctamente
+    }, 80);
+  });
+
+  // ===================== MAPA DE RONDAS — VISTA ADMINISTRACIÓN (solo su instalación) =====================
+  let rondaMapAdmin = null;
+  let rondaMapLayerAdmin = null;
+  let mapaTurnoSeleccionadoAdmin = 'turno1';
+  let mapaRondaSeleccionadaAdmin = 'todas';
+
+  function inicializarMapaAdmin(){
+    if(rondaMapAdmin){ rondaMapAdmin.remove(); rondaMapAdmin = null; }
+    rondaMapAdmin = L.map('ronda-map-admin').setView([-17.7695845, -63.1991764], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap',
+      maxZoom: 19
+    }).addTo(rondaMapAdmin);
+    rondaMapLayerAdmin = L.layerGroup().addTo(rondaMapAdmin);
+
+    const selectTurno = document.getElementById('map-turno-select-admin');
+    const turnosDelSitio = turnos.filter(t=>t.sitio === NOMBRE_SITIO_REAL);
+    if(selectTurno.options.length === 0){
+      turnosDelSitio.forEach(t=>{
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        opt.textContent = textoOpcionTurno(t);
+        selectTurno.appendChild(opt);
+      });
+      selectTurno.value = mapaTurnoSeleccionadoAdmin;
+      selectTurno.onchange = ()=>{
+        mapaTurnoSeleccionadoAdmin = selectTurno.value;
+        mapaRondaSeleccionadaAdmin = 'todas';
+        poblarSelectorRondasAdmin();
+        renderMapaAdmin(true);
+      };
+    } else {
+      Array.from(selectTurno.options).forEach(opt=>{
+        const t = turno(opt.value);
+        if(t) opt.textContent = textoOpcionTurno(t);
+      });
+    }
+    poblarSelectorRondasAdmin();
+  }
+
+  function poblarSelectorRondasAdmin(){
+    const t = turno(mapaTurnoSeleccionadoAdmin);
+    const selectRonda = document.getElementById('map-ronda-select-admin');
+    selectRonda.innerHTML = '';
+    const optTodas = document.createElement('option');
+    optTodas.value = 'todas';
+    optTodas.textContent = 'Todas las rondas';
+    selectRonda.appendChild(optTodas);
+    t.rondas.forEach(r=>{
+      const opt = document.createElement('option');
+      opt.value = String(r.numero);
+      opt.textContent = `Ronda ${r.numero}` + (r.finMinuto === null ? ' (en curso)' : '') + ` · ${r.puntos.length} pt`;
+      selectRonda.appendChild(opt);
+    });
+    const valores = Array.from(selectRonda.options).map(o=>o.value);
+    if(!valores.includes(mapaRondaSeleccionadaAdmin)) mapaRondaSeleccionadaAdmin = 'todas';
+    selectRonda.value = mapaRondaSeleccionadaAdmin;
+    selectRonda.onchange = ()=>{ mapaRondaSeleccionadaAdmin = selectRonda.value; renderMapaAdmin(true); };
+  }
+
+  function renderMapaAdmin(ajustarVista){
+    if(!rondaMapAdmin) return;
+    rondaMapAdmin.invalidateSize();
+    const t = turno(mapaTurnoSeleccionadoAdmin);
+    rondaMapLayerAdmin.clearLayers();
+
+    const rondasAMostrar = mapaRondaSeleccionadaAdmin === 'todas'
+      ? t.rondas
+      : t.rondas.filter(r => String(r.numero) === mapaRondaSeleccionadaAdmin);
+
+    const totalPuntosMarcados = rondasAMostrar.reduce((acc,r)=>acc + r.puntos.length, 0);
+    const totalTrayectoria = rondasAMostrar.reduce((acc,r)=>acc + (r.trayectoria ? r.trayectoria.length : 0), 0);
+    document.getElementById('map-puntos-count-admin').textContent =
+      `${rondasAMostrar.length} ronda(s) · ${totalPuntosMarcados} marcado(s)${totalTrayectoria ? ` · ${totalTrayectoria} de rastreo` : ''}`;
+
+    const infoEl = document.getElementById('map-ronda-info-admin');
+    if(mapaRondaSeleccionadaAdmin !== 'todas' && rondasAMostrar.length === 1){
+      const r = rondasAMostrar[0];
+      const rangoHora = r.horaFin ? `${r.horaInicio} → ${r.horaFin}` : `${r.horaInicio} → en curso`;
+      infoEl.innerHTML = `<strong>Ronda ${r.numero}</strong> · ${r.guardia} · ${rangoHora} · ${duracionRonda(r)} · ${r.puntos.length} punto(s)`;
+      infoEl.style.display = 'block';
+    } else {
+      infoEl.style.display = 'none';
+    }
+
+    if(totalPuntosMarcados + totalTrayectoria === 0){
+      document.getElementById('ronda-map-admin').style.display = 'none';
+      document.getElementById('ronda-map-admin-empty').style.display = 'block';
+      return;
+    }
+    document.getElementById('ronda-map-admin').style.display = 'block';
+    document.getElementById('ronda-map-admin-empty').style.display = 'none';
+
+    let todosLosLatlngs = [];
+    try{
+      rondasAMostrar.forEach((ronda, ri) => {
+        const colorLinea = mapaRondaSeleccionadaAdmin === 'todas' ? PALETA_RONDAS[ri % PALETA_RONDAS.length] : '#0B2545';
+
+        if(ronda.trayectoria && ronda.trayectoria.length){
+          const trLatLngs = ronda.trayectoria.map(p=>[p.lat, p.lng]);
+          todosLosLatlngs = todosLosLatlngs.concat(trLatLngs);
+          if(trLatLngs.length > 1){
+            L.polyline(trLatLngs, { color:'#1B7C9E', weight:2, opacity:0.5 }).addTo(rondaMapLayerAdmin);
+          }
+          if(ronda.finMinuto === null){
+            const ultima = ronda.trayectoria[ronda.trayectoria.length - 1];
+            const iconoLive = L.divIcon({
+              className: 'live-position-marker',
+              html: `<div class="live-position-dot"></div>`,
+              iconSize: [18,18], iconAnchor: [9,9]
+            });
+            L.marker([ultima.lat, ultima.lng], { icon: iconoLive }).addTo(rondaMapLayerAdmin)
+              .bindPopup(`<strong>Posición en vivo</strong><br>Ronda ${ronda.numero} · ${ronda.guardia}<br>±${ultima.precision}m GPS`);
+          }
+        }
+
+        if(ronda.puntos.length === 0) return;
+        const cronologico = [...ronda.puntos].reverse();
+        const latlngs = cronologico.map(p=>[p.lat, p.lng]);
+        todosLosLatlngs = todosLosLatlngs.concat(latlngs);
+
+        if(latlngs.length > 1){
+          L.polyline(latlngs, { color: colorLinea, weight:3, opacity:0.65, dashArray:'6,6' }).addTo(rondaMapLayerAdmin);
+        }
+
+        cronologico.forEach((p, idx)=>{
+          const esUltimo = idx === cronologico.length - 1;
+          const color = p.esSimulado ? '#B3413B' : (esUltimo ? '#D4AF37' : '#2E7D5B');
+          const tam = esUltimo ? 24 : 20;
+          const borde = p.esSimulado ? '2.5px dashed #fff' : '2.5px solid #fff';
+          const icono = L.divIcon({
+            className: 'punto-dot-marker',
+            html: `<div style="width:${tam}px; height:${tam}px; border-radius:50%; background:${color}; border:${borde}; box-shadow:0 1px 4px rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:${tam>20?11:10}px; font-weight:600;">${idx+1}</div>`,
+            iconSize: [tam, tam],
+            iconAnchor: [tam/2, tam/2]
+          });
+          const marker = L.marker([p.lat, p.lng], { icon: icono, zIndexOffset: idx }).addTo(rondaMapLayerAdmin);
+          marker.bindPopup(`<strong>Ronda ${ronda.numero} · Punto ${idx+1}</strong><br>${p.hora}<br>min ${p.minuto} del turno<br>±${p.precision}m GPS${p.esSimulado ? '<br>⚠ sin señal GPS real' : ''}`);
+        });
+      });
+    } catch(e){
+      showToast('Error al dibujar el mapa: ' + e.message);
+    }
+
+    if(ajustarVista){
+      try{
+        if(todosLosLatlngs.length === 1){
+          rondaMapAdmin.setView(todosLosLatlngs[0], 17);
+        } else if(todosLosLatlngs.length > 1){
+          rondaMapAdmin.fitBounds(todosLosLatlngs, { padding:[30,30], maxZoom:18 });
+        }
+      } catch(e){
+        if(todosLosLatlngs.length) rondaMapAdmin.setView(todosLosLatlngs[todosLosLatlngs.length-1], 16);
+      }
+    }
+  }
+
+  // Se inicializa al entrar a la pestaña Administración
+  document.querySelector('.tab[data-view="administracion"]').addEventListener('click', ()=>{
+    setTimeout(()=>{
+      inicializarMapaAdmin();
+      if(rondaMapAdmin) rondaMapAdmin.invalidateSize();
+      renderMapaAdmin(true);
+    }, 80);
+  });
+
+  // ===================== TABS =====================
+  document.querySelectorAll('.tab').forEach(tab=>{
+    tab.onclick = ()=>{
+      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('view-guardia').classList.remove('active');
+      document.getElementById('view-supervisor').classList.remove('active');
+      document.getElementById('view-administracion').classList.remove('active');
+      document.getElementById('view-'+tab.dataset.view).classList.add('active');
+    };
+  });
+
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'), 2600);
+  }
+
+  // ===================== SOS: llamada + WhatsApp de respaldo =====================
+  let ultimaUbicacionSOS = null;
+  document.getElementById('btn-sos').onclick = ()=>{
+    const t = turno(turnoActivoId);
+    t.sos = true;
+    guardarTurnos();
+    renderSupervisor();
+    window.location.href = `tel:+${CONTACTOS_SOS[0].numero}`;
+    showToast(`⚠ Llamando a ${CONTACTOS_SOS[0].nombre}...`);
+
+    // Si hay más contactos registrados, se muestran como botones de respaldo
+    // por si el primero no contesta.
+    const wrapRespaldo = document.getElementById('sos-contactos-respaldo');
+    if(CONTACTOS_SOS.length > 1){
+      wrapRespaldo.innerHTML = '';
+      CONTACTOS_SOS.slice(1).forEach(c=>{
+        const btn = document.createElement('button');
+        btn.className = 'action-btn btn-sos';
+        btn.style.width = '100%';
+        btn.style.marginBottom = '8px';
+        btn.innerHTML = `<span class="ic">☎</span>Llamar a ${c.nombre} (respaldo)`;
+        btn.onclick = ()=>{ window.location.href = `tel:+${c.numero}`; };
+        wrapRespaldo.appendChild(btn);
+      });
+      wrapRespaldo.style.display = 'block';
+    }
+
+    const guardarUbicacion = (lat, lng, precision) => {
+      ultimaUbicacionSOS = { lat, lng, precision };
+      document.getElementById('btn-sos-whatsapp').style.display = 'flex';
+    };
+    if(navigator.geolocation){
+      navigator.geolocation.getCurrentPosition(
+        pos => guardarUbicacion(pos.coords.latitude, pos.coords.longitude, Math.round(pos.coords.accuracy)),
+        () => guardarUbicacion(posicionSimulada.lat, posicionSimulada.lng, posicionSimulada.precision_m),
+        { enableHighAccuracy:true, timeout:5000 }
+      );
+    } else {
+      guardarUbicacion(posicionSimulada.lat, posicionSimulada.lng, posicionSimulada.precision_m);
+    }
+  };
+  document.getElementById('btn-sos-whatsapp').onclick = ()=>{
+    const t = turno(turnoActivoId);
+    if(!ultimaUbicacionSOS){ showToast('Aún calculando tu ubicación, intenta en unos segundos'); return; }
+    const { lat, lng, precision } = ultimaUbicacionSOS;
+    const mapsLink = `https://maps.google.com/?q=${lat},${lng}`;
+    const mensaje = `🆘 SOS CSP\nSitio: ${t.sitio}\nTurno: ${t.tipoLabel}\nUbicación: ${mapsLink}\nPrecisión GPS: ±${precision}m\nHora: ${new Date().toLocaleTimeString('es-BO')}`;
+    const url = `https://wa.me/${CONTACTO_SOS}?text=${encodeURIComponent(mensaje)}`;
+    window.open(url, '_blank');
+  };
+
+  // ===================== HOMBRE VIVO: ventana horaria + intervalo real + beep + notificación =====================
+  const HV_HORA_INICIO = 23; // 23:00
+  const HV_HORA_FIN = 7;     // 07:00 (cruza medianoche)
+  const HV_INTERVALO_PRODUCCION_SEG = 40 * 60; // 40 minutos reales, fuera del modo prueba
+  const HV_INTERVALO_DEMO_SEG = 25; // con el interruptor de modo prueba activado
+
+  let modoPruebaActivo = false;
+
+  function dentroDeVentanaHV(){
+    const h = new Date().getHours();
+    return (h >= HV_HORA_INICIO) || (h < HV_HORA_FIN);
+  }
+  function intervaloHV(t){
+    return modoPruebaActivo ? HV_INTERVALO_DEMO_SEG : HV_INTERVALO_PRODUCCION_SEG;
+  }
+  turnos.forEach(t=>{ t._hvSegundosRestantes = intervaloHV(t); });
+
+  document.getElementById('modo-prueba-toggle').onclick = ()=>{
+    modoPruebaActivo = !modoPruebaActivo;
+    document.getElementById('modo-prueba-estado').textContent = modoPruebaActivo ? 'ON' : 'OFF';
+    document.getElementById('modo-prueba-toggle').classList.toggle('activo', modoPruebaActivo);
+    turnos.forEach(t=>{ if(!t.hvPendiente) t._hvSegundosRestantes = intervaloHV(t); });
+    showToast(modoPruebaActivo
+      ? '🧪 Modo prueba activado — Guardia Activo cada 25s, sin importar la hora'
+      : 'Modo prueba desactivado — Guardia Activo vuelve al horario real (23:00–07:00, cada 40 min)');
+    renderGuardia(); renderSupervisor();
+  };
+
+  let audioCtx = null;
+  let alertaHVInterval = null;
+
+  function _tocarTonos(){
+    [0, 260].forEach(delay=>{
+      setTimeout(()=>{
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.22);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.22);
+      }, delay);
+    });
+  }
+
+  function reproducirBeep(){
+    try{
+      if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if(audioCtx.state === 'suspended'){ audioCtx.resume().then(()=> _tocarTonos()); }
+      else { _tocarTonos(); }
+    } catch(e){ /* audio no disponible */ }
+    dispararNotificacionHV();
+  }
+
+  function dispararNotificacionHV(){
+    if(!('Notification' in window) || Notification.permission !== 'granted') return;
+    try{
+      const t = turno(turnoActivoId);
+      new Notification('⚠ CSP Control · Guardia Activo', {
+        body: `${nombreGuardias(t)} — confirma que estás bien`,
+        vibrate: [300,150,300,150,300],
+        tag: 'hombre-vivo',
+        requireInteraction: true
+      });
+    } catch(e){ /* no crítico */ }
+  }
+
+  function actualizarAlertaHV(){
+    const t = turno(turnoActivoId);
+    if(t.hvPendiente && !alertaHVInterval){
+      reproducirBeep();
+      alertaHVInterval = setInterval(reproducirBeep, 6000);
+    } else if(!t.hvPendiente && alertaHVInterval){
+      clearInterval(alertaHVInterval);
+      alertaHVInterval = null;
+    }
+  }
+
+  function actualizarDisplayHV(t){
+    const el = document.getElementById('g-stat-hv');
+    if(!el) return;
+    const activo = modoPruebaActivo || dentroDeVentanaHV();
+    if(!activo){
+      el.textContent = 'Inactivo';
+      document.getElementById('g-stat-hv-wrap').title = `Guardia Activo solo opera de ${HV_HORA_INICIO}:00 a 0${HV_HORA_FIN}:00`;
+    } else {
+      el.textContent = t.hvPendiente ? '¡Ahora!' : Math.max(0,Math.floor(t._hvSegundosRestantes/60)) + 'm';
+      document.getElementById('g-stat-hv-wrap').title = '';
+    }
+    actualizarAlertaHV();
+    document.getElementById('btn-hv').classList.toggle('pending', !!t.hvPendiente);
+  }
+
+  document.getElementById('btn-hv').onclick = ()=>{
+    const t = turno(turnoActivoId);
+    if(t.hvPendiente){
+      t.hvPendiente = false;
+      t._hvSegundosRestantes = intervaloHV(t);
+      showToast('Guardia Activo confirmado ✓');
+      guardarTurnos();
+    } else {
+      const activo = modoPruebaActivo || dentroDeVentanaHV();
+      showToast(activo ? `Sin check-in pendiente — próximo en ~${Math.ceil(t._hvSegundosRestantes/60)} min` : `Guardia Activo inactivo fuera del horario ${HV_HORA_INICIO}:00–0${HV_HORA_FIN}:00`);
+    }
+    renderGuardia(); renderSupervisor();
+  };
+
+  document.getElementById('btn-unlock-audio').onclick = ()=>{
+    try{
+      if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if(audioCtx.state === 'suspended'){ audioCtx.resume().then(()=> _tocarTonos()); }
+      else { _tocarTonos(); }
+    } catch(e){ showToast('No se pudo crear AudioContext: ' + e.message); }
+    if(navigator.vibrate) navigator.vibrate(200);
+    if('Notification' in window){
+      Notification.requestPermission().then(permiso=>{
+        showToast(permiso === 'granted'
+          ? '🔔 Notificaciones activadas — así vibrará el aviso de Guardia Activo'
+          : 'Notificaciones bloqueadas: sin ellas, la alerta de Guardia Activo no podrá vibrar sola');
+      });
+    } else {
+      showToast('Este navegador no soporta notificaciones');
+    }
+    document.getElementById('hv-unlock-banner').style.display = 'none';
+  };
+
+  setInterval(()=>{
+    let cambioActivo = false;
+    turnos.forEach(t=>{
+      if(t.hvPendiente) return;
+      const activo = modoPruebaActivo || dentroDeVentanaHV();
+      if(!activo) return; // fuera de horario: no cuenta, no dispara
+      t._hvSegundosRestantes -= 1;
+      if(t._hvSegundosRestantes <= 0){
+        t.hvPendiente = true;
+        if(t.id === turnoActivoId) cambioActivo = true;
+        guardarTurnos();
+      }
+    });
+    if(cambioActivo) renderGuardia();
+    else actualizarDisplayHV(turno(turnoActivoId));
+    renderSupervisor();
+  }, 1000);
+
+  // ===================== NOVEDADES: foto/video + lista supervisor =====================
+  let novedadAdjuntos = [];
+  let novedadesGuardadas = [];
+
+  function agregarAdjunto(file, tipo){
+    const url = URL.createObjectURL(file);
+    novedadAdjuntos.push({ tipo, url, nombre:file.name });
+    renderMediaPreview();
+  }
+  function renderMediaPreview(){
+    const wrap = document.getElementById('media-preview');
+    wrap.innerHTML = '';
+    novedadAdjuntos.forEach((a, i)=>{
+      const thumb = document.createElement('div');
+      thumb.className = 'media-thumb';
+      thumb.innerHTML = a.tipo==='foto' ? `<img src="${a.url}" alt="foto adjunta">` : `<video src="${a.url}" muted></video>`;
+      const tag = document.createElement('span');
+      tag.className = 'media-tag';
+      tag.textContent = a.tipo==='foto' ? 'FOTO' : 'VIDEO';
+      thumb.appendChild(tag);
+      const rm = document.createElement('button');
+      rm.className = 'media-remove';
+      rm.textContent = '×';
+      rm.onclick = ()=>{ novedadAdjuntos.splice(i,1); renderMediaPreview(); };
+      thumb.appendChild(rm);
+      wrap.appendChild(thumb);
+    });
+  }
+  document.getElementById('novedad-foto-input').addEventListener('change', e=>{
+    if(e.target.files[0]) agregarAdjunto(e.target.files[0], 'foto');
+    e.target.value = '';
+  });
+  document.getElementById('novedad-video-input').addEventListener('change', e=>{
+    if(e.target.files[0]) agregarAdjunto(e.target.files[0], 'video');
+    e.target.value = '';
+  });
+
+  document.getElementById('btn-novedad').onclick = ()=>{
+    const t = turno(turnoActivoId);
+    document.getElementById('novedad-sitio-hint').textContent = 'Sitio: ' + t.sitio;
+    const wrapGuardia = document.getElementById('novedad-guardia-wrap');
+    const selectGuardia = document.getElementById('novedad-guardia-select');
+    if(t.guardiasPresentes.length > 1){
+      selectGuardia.innerHTML = t.guardiasPresentes.map(n=>`<option value="${n}">${n}</option>`).join('');
+      wrapGuardia.style.display = 'block';
+    } else {
+      wrapGuardia.style.display = 'none';
+    }
+    document.getElementById('novedad-desc').value='';
+    novedadAdjuntos = [];
+    renderMediaPreview();
+    document.getElementById('modal-novedad').classList.add('show');
+  };
+  document.getElementById('novedad-cancel').onclick = ()=>{
+    document.getElementById('modal-novedad').classList.remove('show');
+  };
+  document.getElementById('novedad-submit').onclick = ()=>{
+    const t = turno(turnoActivoId);
+    const desc = document.getElementById('novedad-desc').value.trim();
+    const cat = document.getElementById('novedad-categoria').value;
+    const guardiaQueReporta = t.guardiasPresentes.length > 1
+      ? document.getElementById('novedad-guardia-select').value
+      : t.guardiasPresentes[0];
+    document.getElementById('modal-novedad').classList.remove('show');
+    const ahora = new Date();
+    novedadesGuardadas.unshift({
+      id: 'n'+Date.now(), turnoId: t.id, sitio: t.sitio, guardia: guardiaQueReporta,
+      categoria: cat, descripcion: desc || '(sin descripción)',
+      fecha: ahora.toLocaleDateString('es-BO'),
+      hora: ahora.toLocaleTimeString('es-BO', {hour:'2-digit', minute:'2-digit'}),
+      minutosTurno: t._minutosTranscurridos, adjuntos: novedadAdjuntos.slice()
+    });
+    const nFotos = novedadAdjuntos.filter(a=>a.tipo==='foto').length;
+    const nVideos = novedadAdjuntos.filter(a=>a.tipo==='video').length;
+    let extra = '';
+    if(nFotos || nVideos) extra = ` · ${nFotos} foto(s), ${nVideos} video(s)`;
+    showToast(`Novedad (${cat}) guardada · ${guardiaQueReporta}${extra}`);
+    guardarNovedades();
+    renderSupervisor();
+  };
+
+  // Escucha cambios remotos en /turnos (de cualquier dispositivo) y actualiza esta app en vivo.
+  db.ref('turnos').on('value', snap=>{
+    const datos = snap.val();
+    if(datos && Array.isArray(datos) && datos.length){
+      sincronizandoDesdeFirebase = true;
+      // Se actualizan los turnos existentes en el mismo orden/posición para no romper referencias activas.
+      datos.forEach((t, i)=>{
+        if(!turnos[i]) return;
+        Object.keys(t).forEach(k=>{ if(k !== '_minutosTranscurridos' && k !== '_hvSegundosRestantes') turnos[i][k] = t[k]; });
+      });
+      sincronizandoDesdeFirebase = false;
+      renderGuardia(); renderSupervisor();
+      if(document.getElementById('view-administracion').classList.contains('active')) renderAdministracion();
+    }
+  });
+
+  // Escucha cambios remotos en /novedades
+  db.ref('novedades').on('value', snap=>{
+    const datos = snap.val();
+    sincronizandoDesdeFirebase = true;
+    novedadesGuardadas.length = 0;
+    if(Array.isArray(datos)) datos.forEach(n=>{ if(n) novedadesGuardadas.push(n); });
+    sincronizandoDesdeFirebase = false;
+    renderSupervisor();
+    if(document.getElementById('view-administracion').classList.contains('active')) renderAdministracion();
+  });
+
+  // Escucha cambios remotos en /observaciones (hilos de conversación con Administración)
+  db.ref('observaciones').on('value', snap=>{
+    const datos = snap.val();
+    sincronizandoDesdeFirebase = true;
+    observacionesAdmin.length = 0;
+    if(Array.isArray(datos)) datos.forEach(o=>{ if(o) observacionesAdmin.push(o); });
+    sincronizandoDesdeFirebase = false;
+    renderSupervisor();
+    if(document.getElementById('view-administracion').classList.contains('active')) renderAdministracion();
+  });
+
+  // Escucha cambios remotos en /historialGuardias (autocompletado compartido entre dispositivos)
+  db.ref('historialGuardias').on('value', snap=>{
+    const datos = snap.val();
+    if(Array.isArray(datos)){
+      sincronizandoDesdeFirebase = true;
+      historialNombresGuardias.length = 0;
+      datos.forEach(n=>{ if(n) historialNombresGuardias.push(n); });
+      sincronizandoDesdeFirebase = false;
+      actualizarDatalistGuardias();
+    }
+  });
+
+  // init
+  renderGuardia();
+  renderSupervisor();
+
+  // Este archivo es solo Vista Supervisor (separación por URL) — forzamos esa vista
+  // e inicializamos su mapa, ya que normalmente eso pasaba al hacer clic en la pestaña.
+  document.getElementById('view-guardia').classList.remove('active');
+  document.getElementById('view-supervisor').classList.add('active');
+  setTimeout(()=>{
+    inicializarMapa();
+    if(rondaMap) rondaMap.invalidateSize();
+    renderMapa(true);
+  }, 150);
+</script>
+</body>
+</html>
