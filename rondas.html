@@ -797,11 +797,20 @@ svg.leaflet-image-layer.leaflet-interactive path {
   /* ===== SUPERVISOR VIEW ===== */
   #view-supervisor{ display:none; flex:1; padding:22px 26px 40px; }
   #view-supervisor.active{ display:block; }
+  /* ===== ADMINISTRACIÓN VIEW (mismo estilo base que supervisor) ===== */
+  #view-administracion{ display:none; flex:1; padding:22px 26px 40px; }
+  #view-administracion.active{ display:block; }
+  .admin-obs-card{ background:#fff; border:1px solid var(--line-light); border-radius:12px; padding:16px; margin-bottom:16px; }
+  .admin-obs-card textarea{ width:100%; border:1px solid #d8d5cd; border-radius:8px; padding:10px 12px; font-family:'Inter',sans-serif; font-size:13.5px; min-height:70px; margin-top:8px; resize:vertical; }
+  .admin-obs-card input{ width:100%; border:1px solid #d8d5cd; border-radius:8px; padding:10px 12px; font-family:'Inter',sans-serif; font-size:13.5px; margin-top:6px; }
+  .admin-obs-card label{ font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:0.04em; font-family:'IBM Plex Mono',monospace; }
+  .admin-obs-card button{ margin-top:10px; background:var(--navy); color:#fff; border:none; padding:10px 18px; border-radius:8px; font-family:'Oswald',sans-serif; font-weight:600; font-size:12.5px; letter-spacing:0.03em; text-transform:uppercase; cursor:pointer; }
+  .admin-obs-item{ background:#fff; border:1px solid var(--line-light); border-left:4px solid var(--navy); border-radius:10px; padding:12px 14px; margin-bottom:10px; }
   .s-header{ margin-bottom:18px; }
   .s-eyebrow{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.12em; color:var(--gold); text-transform:uppercase; }
   .s-title{ font-family:'Oswald',sans-serif; font-size:26px; font-weight:600; color:var(--navy); margin-top:4px; }
 
-  .s-summary{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:22px; }
+  .s-summary{ display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:22px; }
   .s-card{ background:#fff; border:1px solid var(--line-light); border-radius:12px; padding:14px 16px; }
   .s-card-num{ font-family:'Oswald',sans-serif; font-size:26px; font-weight:600; color:var(--navy); }
   .s-card-label{ font-size:11.5px; color:#6b7280; text-transform:uppercase; letter-spacing:0.04em; margin-top:2px; }
@@ -913,7 +922,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   .toast{ position:fixed; top:16px; left:50%; transform:translateX(-50%); background:var(--navy-deep); color:var(--gold-soft); padding:10px 18px; border-radius:8px; font-family:'IBM Plex Mono',monospace; font-size:12.5px; z-index:100; opacity:0; pointer-events:none; transition:opacity .25s, transform .25s; max-width:90vw; text-align:center; }
   .toast.show{ opacity:1; transform:translateX(-50%) translateY(4px); }
 
-  @media (max-width:640px){ .s-summary{ grid-template-columns:repeat(2,1fr); } }
+  @media (max-width:640px){ .s-summary{ grid-template-columns:repeat(2,1fr); } .s-summary .s-card:last-child{ grid-column: 1 / -1; } }
 </style>
 </head>
 <body>
@@ -928,6 +937,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   <div class="tabbar">
     <div class="tab active" data-view="guardia">Vista Guardia</div>
     <div class="tab" data-view="supervisor">Vista Supervisor</div>
+    <div class="tab" data-view="administracion">Vista Administración</div>
   </div>
 
   <!-- ============ GUARD VIEW ============ -->
@@ -1018,6 +1028,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       <div class="s-card alert s-card-click" id="s-card-sos"><div class="s-card-num" id="s-total-sos">0</div><div class="s-card-label">SOS activos</div></div>
       <div class="s-card alert s-card-click" id="s-card-hv"><div class="s-card-num" id="s-total-hv">0</div><div class="s-card-label">Guardia Activo pendiente</div></div>
       <div class="s-card s-card-click" id="s-card-novedades"><div class="s-card-num" id="s-total-novedades">0</div><div class="s-card-label">Novedades</div></div>
+      <div class="s-card s-card-click" id="s-card-comunicaciones"><div class="s-card-num" id="s-total-comunicaciones">0</div><div class="s-card-label">Comunicaciones de Admin.</div></div>
     </div>
     <div id="s-summary-detail" class="s-summary-detail" style="display:none;"></div>
 
@@ -1041,6 +1052,34 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
     <div class="s-section-title">Novedades registradas</div>
     <div id="s-novedades-list"></div>
+  </div>
+
+  <!-- ============ ADMINISTRACIÓN VIEW ============ -->
+  <div id="view-administracion">
+    <div class="s-header">
+      <div class="s-eyebrow">Vista Administración</div>
+      <div class="s-title" id="admin-sitio-nombre">—</div>
+      <div class="g-sub" id="admin-fecha-hoy" style="color:#6b7280; margin-top:2px;">—</div>
+    </div>
+
+    <div class="s-section-title">Guardia(s) de turno</div>
+    <div id="admin-guardias-turno"></div>
+
+    <div class="s-section-title">Rondas realizadas</div>
+    <div id="admin-rondas-lista"></div>
+
+    <div class="s-section-title">Novedades</div>
+    <div id="admin-novedades-lista"></div>
+
+    <div class="s-section-title">Observaciones y comunicaciones</div>
+    <div class="admin-obs-card">
+      <label>Tu nombre</label>
+      <input type="text" id="admin-obs-nombre" placeholder="Nombre de quien escribe...">
+      <label style="display:block; margin-top:10px;">Observación o comunicación para CSP</label>
+      <textarea id="admin-obs-mensaje" placeholder="Escribe aquí..."></textarea>
+      <button id="admin-obs-enviar">Publicar</button>
+    </div>
+    <div id="admin-obs-lista"></div>
   </div>
 
 </div>
@@ -1175,6 +1214,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     turnos.forEach(t=> t._minutosTranscurridos += 1);
     renderGuardia();
     renderSupervisor();
+    if(document.getElementById('view-administracion').classList.contains('active')) renderAdministracion();
   }, 4000);
 
   // ===================== RONDAS: iniciar / marcar / finalizar =====================
@@ -1550,6 +1590,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     document.getElementById('s-total-sos').textContent = totalSOS;
     document.getElementById('s-total-hv').textContent = totalHV;
     document.getElementById('s-total-novedades').textContent = novedadesGuardadas.length;
+    document.getElementById('s-total-comunicaciones').textContent = observacionesAdmin.length;
 
     renderInstalaciones();
     renderNovedades();
@@ -1737,6 +1778,14 @@ svg.leaflet-image-layer.leaflet-interactive path {
           : `<div class="instalacion-line muted">Sin SOS activos.</div>`);
         body.appendChild(secSOS);
 
+        // 6. Observaciones de Administración
+        const obsDelSitio = observacionesAdmin.filter(o=>o.sitio === sitio);
+        const secObs = document.createElement('div');
+        secObs.innerHTML = `<div class="instalacion-section-title">Observaciones de Administración</div>` + (obsDelSitio.length
+          ? obsDelSitio.slice(0,5).map(o=>`<div class="instalacion-line"><strong>${o.autor}</strong> · ${o.fecha} ${o.hora}<br><span style="color:#4b5563;">${o.mensaje}</span></div>`).join('')
+          : `<div class="instalacion-line muted">Sin observaciones registradas.</div>`);
+        body.appendChild(secObs);
+
         card.appendChild(body);
       }
 
@@ -1755,10 +1804,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
   document.getElementById('s-card-sos').onclick = ()=> toggleSummaryDetail('sos');
   document.getElementById('s-card-hv').onclick = ()=> toggleSummaryDetail('hv');
   document.getElementById('s-card-novedades').onclick = ()=> toggleSummaryDetail('novedades');
+  document.getElementById('s-card-comunicaciones').onclick = ()=> toggleSummaryDetail('comunicaciones');
 
   function renderSummaryDetail(){
     const panel = document.getElementById('s-summary-detail');
-    ['s-card-instalaciones','s-card-sos','s-card-hv','s-card-novedades'].forEach(id=>document.getElementById(id).classList.remove('open'));
+    ['s-card-instalaciones','s-card-sos','s-card-hv','s-card-novedades','s-card-comunicaciones'].forEach(id=>document.getElementById(id).classList.remove('open'));
     if(!summaryDetailAbierto){ panel.style.display='none'; panel.innerHTML=''; return; }
     document.getElementById('s-card-'+summaryDetailAbierto).classList.add('open');
     panel.style.display = 'block';
@@ -1803,7 +1853,60 @@ svg.leaflet-image-layer.leaflet-interactive path {
             return `<div class="s-summary-detail-item"><strong>${n.sitio} — ${n.categoria}</strong><span>${n.guardia} · ${resumen}</span></div>`;
           }).join('')
         : `<div class="s-summary-detail-empty">Aún no se registraron novedades.</div>`);
+    } else if(summaryDetailAbierto === 'comunicaciones'){
+      const titulo = document.createElement('div');
+      titulo.className = 's-summary-detail-title';
+      titulo.textContent = 'Comunicaciones recibidas de Administración:';
+      panel.innerHTML = '';
+      panel.appendChild(titulo);
+      if(observacionesAdmin.length === 0){
+        const vacio = document.createElement('div');
+        vacio.className = 's-summary-detail-empty';
+        vacio.textContent = 'Todavía no se recibió ninguna.';
+        panel.appendChild(vacio);
+      } else {
+        observacionesAdmin.slice(0,6).forEach(o=>{
+          const resumen = o.mensaje.length > 90 ? o.mensaje.slice(0,90)+'…' : o.mensaje;
+          const item = document.createElement('div');
+          item.className = 's-summary-detail-item clickable';
+          item.innerHTML = `<strong>${o.sitio} — ${o.autor}</strong><span>${o.fecha} ${o.hora} · ${resumen}</span>`;
+          item.onclick = ()=> irAInstalacion(o.sitio);
+          panel.appendChild(item);
+        });
+      }
     }
+  }
+
+  function crearTarjetaNovedad(n){
+    const card = document.createElement('div');
+    card.className = 'novedad-card cat-'+n.categoria;
+    const top = document.createElement('div');
+    top.className = 'novedad-top';
+    top.innerHTML = `
+      <div class="novedad-meta"><strong>${n.sitio}</strong> · ${n.guardia} · ${n.fecha} ${n.hora}</div>
+      <div class="novedad-cat-badge cat-${n.categoria}">${n.categoria}</div>
+    `;
+    card.appendChild(top);
+    const desc = document.createElement('div');
+    desc.className = 'novedad-desc';
+    desc.textContent = n.descripcion;
+    card.appendChild(desc);
+    if(n.adjuntos && n.adjuntos.length){
+      const media = document.createElement('div');
+      media.className = 'novedad-media';
+      n.adjuntos.forEach(a=>{
+        const thumb = document.createElement('div');
+        thumb.className = 'media-thumb';
+        thumb.innerHTML = a.tipo==='foto' ? `<img src="${a.url}" alt="foto novedad">` : `<video src="${a.url}" muted controls></video>`;
+        const tag = document.createElement('span');
+        tag.className = 'media-tag';
+        tag.textContent = a.tipo==='foto' ? 'FOTO' : 'VIDEO';
+        thumb.appendChild(tag);
+        media.appendChild(thumb);
+      });
+      card.appendChild(media);
+    }
+    return card;
   }
 
   function renderNovedades(){
@@ -1813,38 +1916,85 @@ svg.leaflet-image-layer.leaflet-interactive path {
       wrap.innerHTML = '<div class="novedad-empty">Aún no se registraron novedades.</div>';
       return;
     }
-    novedadesGuardadas.forEach(n=>{
-      const card = document.createElement('div');
-      card.className = 'novedad-card cat-'+n.categoria;
-      const top = document.createElement('div');
-      top.className = 'novedad-top';
-      top.innerHTML = `
-        <div class="novedad-meta"><strong>${n.sitio}</strong> · ${n.guardia} · ${n.fecha} ${n.hora}</div>
-        <div class="novedad-cat-badge cat-${n.categoria}">${n.categoria}</div>
-      `;
-      card.appendChild(top);
-      const desc = document.createElement('div');
-      desc.className = 'novedad-desc';
-      desc.textContent = n.descripcion;
-      card.appendChild(desc);
-      if(n.adjuntos && n.adjuntos.length){
-        const media = document.createElement('div');
-        media.className = 'novedad-media';
-        n.adjuntos.forEach(a=>{
-          const thumb = document.createElement('div');
-          thumb.className = 'media-thumb';
-          thumb.innerHTML = a.tipo==='foto' ? `<img src="${a.url}" alt="foto novedad">` : `<video src="${a.url}" muted controls></video>`;
-          const tag = document.createElement('span');
-          tag.className = 'media-tag';
-          tag.textContent = a.tipo==='foto' ? 'FOTO' : 'VIDEO';
-          thumb.appendChild(tag);
-          media.appendChild(thumb);
-        });
-        card.appendChild(media);
-      }
-      wrap.appendChild(card);
-    });
+    novedadesGuardadas.forEach(n=> wrap.appendChild(crearTarjetaNovedad(n)));
   }
+
+  // ===================== VISTA ADMINISTRACIÓN (por instalación) =====================
+  let observacionesAdmin = [];
+
+  function renderAdministracion(){
+    const sitio = NOMBRE_SITIO_REAL;
+    document.getElementById('admin-sitio-nombre').textContent = sitio;
+    document.getElementById('admin-fecha-hoy').textContent =
+      `${fechaLegibleHoy()} · ${new Date().toLocaleTimeString('es-BO', {hour:'2-digit', minute:'2-digit'})}`;
+
+    const turnosDelSitio = turnos.filter(t=>t.sitio === sitio);
+
+    // Guardia(s) de turno
+    const guardiasEnTurno = turnosDelSitio.filter(t=>t.iniciado);
+    document.getElementById('admin-guardias-turno').innerHTML = guardiasEnTurno.length
+      ? guardiasEnTurno.flatMap(t=>t.guardiasPresentes.map(g=>`<div class="instalacion-line"><strong>${g}</strong> — ${t.tipoLabel}</div>`)).join('')
+      : `<div class="instalacion-line muted">Ningún guardia con turno iniciado.</div>`;
+
+    // Rondas realizadas (listado, con quién/hora/duración)
+    let rondasHtml = '';
+    turnosDelSitio.forEach(t=>{
+      if(t.rondas.length === 0) return;
+      rondasHtml += `<div class="instalacion-line"><strong>${t.tipoLabel}</strong></div>`;
+      for(let i = t.rondas.length - 1; i >= 0; i--){
+        const r = t.rondas[i];
+        const rangoHora = r.horaFin ? `${r.horaInicio} → ${r.horaFin}` : `${r.horaInicio} → en curso`;
+        rondasHtml += `<div class="instalacion-line" style="padding-left:12px;">→ Ronda ${r.numero}${t.guardiasPresentes.length > 1 ? ' · '+r.guardia : ''} · ${rangoHora} · ${duracionRonda(r)} · ${r.puntos.length} punto(s)</div>`;
+      }
+    });
+    document.getElementById('admin-rondas-lista').innerHTML = rondasHtml || `<div class="instalacion-line muted">Sin rondas registradas todavía.</div>`;
+
+    // Novedades (con foto/video)
+    const wrapNov = document.getElementById('admin-novedades-lista');
+    wrapNov.innerHTML = '';
+    const novedadesDelSitio = novedadesGuardadas.filter(n=>n.sitio === sitio);
+    if(novedadesDelSitio.length === 0){
+      wrapNov.innerHTML = `<div class="instalacion-line muted">Sin novedades registradas.</div>`;
+    } else {
+      novedadesDelSitio.forEach(n=> wrapNov.appendChild(crearTarjetaNovedad(n)));
+    }
+
+    // Observaciones y comunicaciones de Administración
+    const wrapObs = document.getElementById('admin-obs-lista');
+    wrapObs.innerHTML = '';
+    const obsDelSitio = observacionesAdmin.filter(o=>o.sitio === sitio);
+    if(obsDelSitio.length === 0){
+      wrapObs.innerHTML = `<div class="instalacion-line muted">Todavía no se registraron observaciones.</div>`;
+    } else {
+      obsDelSitio.forEach(o=>{
+        const item = document.createElement('div');
+        item.className = 'admin-obs-item';
+        item.innerHTML = `
+          <div class="instalacion-line"><strong>${o.autor}</strong> · ${o.fecha} ${o.hora}</div>
+          <div class="instalacion-line" style="padding-top:0; color:#4b5563;">${o.mensaje}</div>
+        `;
+        wrapObs.appendChild(item);
+      });
+    }
+  }
+
+  document.getElementById('admin-obs-enviar').onclick = ()=>{
+    const nombre = document.getElementById('admin-obs-nombre').value.trim();
+    const mensaje = document.getElementById('admin-obs-mensaje').value.trim();
+    if(!nombre || !mensaje){ showToast('Escribe tu nombre y el mensaje antes de publicar'); return; }
+    const ahora = new Date();
+    observacionesAdmin.unshift({
+      id: 'o'+Date.now(), sitio: NOMBRE_SITIO_REAL, autor: nombre, mensaje,
+      fecha: ahora.toLocaleDateString('es-BO'),
+      hora: ahora.toLocaleTimeString('es-BO', {hour:'2-digit', minute:'2-digit'})
+    });
+    document.getElementById('admin-obs-mensaje').value = '';
+    showToast('Observación publicada');
+    renderAdministracion();
+    renderSupervisor();
+  };
+
+  document.querySelector('.tab[data-view="administracion"]').addEventListener('click', ()=> renderAdministracion());
 
   // ===================== MAPA DE RONDAS (Leaflet + OpenStreetMap) =====================
   let rondaMap = null;
