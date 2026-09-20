@@ -1995,15 +1995,15 @@ svg.leaflet-image-layer.leaflet-interactive path {
         cronologico.forEach((p, idx)=>{
           const esUltimo = idx === cronologico.length - 1;
           const color = p.esSimulado ? '#B3413B' : (esUltimo ? '#D4AF37' : '#2E7D5B');
-          const tam = esUltimo ? 20 : 16;
+          const tam = esUltimo ? 24 : 20;
           const borde = p.esSimulado ? '2.5px dashed #fff' : '2.5px solid #fff';
           const icono = L.divIcon({
             className: 'punto-dot-marker',
-            html: `<div style="width:${tam}px; height:${tam}px; border-radius:50%; background:${color}; border:${borde}; box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`,
+            html: `<div style="width:${tam}px; height:${tam}px; border-radius:50%; background:${color}; border:${borde}; box-shadow:0 1px 4px rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; color:#fff; font-family:'IBM Plex Mono',monospace; font-size:${tam>20?11:10}px; font-weight:600;">${idx+1}</div>`,
             iconSize: [tam, tam],
             iconAnchor: [tam/2, tam/2]
           });
-          const marker = L.marker([p.lat, p.lng], { icon: icono }).addTo(rondaMapLayer);
+          const marker = L.marker([p.lat, p.lng], { icon: icono, zIndexOffset: idx }).addTo(rondaMapLayer);
           marker.bindPopup(`<strong>Ronda ${ronda.numero} · Punto ${idx+1}</strong><br>${p.hora}<br>min ${p.minuto} del turno<br>±${p.precision}m GPS${p.esSimulado ? '<br>⚠ sin señal GPS real' : ''}`);
         });
       });
