@@ -710,7 +710,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
   .g-title{ font-family:'Oswald',sans-serif; font-size:22px; font-weight:600; margin-top:4px; }
   .g-sub{ font-size:13px; color:rgba(245,243,238,0.55); margin-top:2px; }
   .g-guardias-lista{ list-style:none; margin:8px 0 0; padding:0; }
-  .g-guardias-lista li{ font-size:13.5px; color:rgba(245,243,238,0.85); padding:2px 0 2px 16px; position:relative; }
+  .g-guardias-lista li{ font-size:13.5px; color:rgba(245,243,238,0.85); padding:3px 0 3px 16px; position:relative; display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .btn-quitar-guardia{ background:none; border:1px solid rgba(179,65,59,0.4); color:#e08a83; font-size:10.5px; font-family:'IBM Plex Mono',monospace; padding:3px 8px; border-radius:12px; cursor:pointer; flex-shrink:0; }
   .g-guardias-lista li::before{ content:'•'; color:var(--gold); position:absolute; left:0; }
   #input-guardia-extra{ border-radius:6px; border:1px solid var(--line); background:var(--charcoal); color:var(--off-white); font-family:'Inter',sans-serif; }
   #input-guardia-extra:focus{ outline:none; border-color:var(--gold); }
@@ -970,9 +971,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     </div>
 
     <div class="g-stats">
-      <div class="g-stat"><div class="g-stat-num" id="g-stat-puntos">0</div><div class="g-stat-label">Puntos en esta ronda</div></div>
-      <div class="g-stat" id="g-stat-ultimo-wrap"><div class="g-stat-num" id="g-stat-ultimo">--</div><div class="g-stat-label">Desde última marca</div></div>
-      <div class="g-stat" id="g-stat-hv-wrap"><div class="g-stat-num" id="g-stat-hv">--</div><div class="g-stat-label">Próx. hombre vivo</div></div>
+      <div class="g-stat" id="g-stat-hv-wrap"><div class="g-stat-num" id="g-stat-hv">--</div><div class="g-stat-label">Próx. Guardia Activo</div></div>
     </div>
 
     <div class="ronda-status" id="ronda-status"></div>
@@ -991,7 +990,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
     <div class="g-actions">
       <button class="action-btn btn-sos" id="btn-sos"><span class="ic">☎</span>SOS</button>
-      <button class="action-btn btn-hv" id="btn-hv"><span class="ic">◎</span>Hombre vivo</button>
+      <button class="action-btn btn-hv" id="btn-hv"><span class="ic">◎</span>Guardia Activo</button>
       <button class="action-btn btn-novedad" id="btn-novedad"><span class="ic">✎</span>Novedad</button>
     </div>
     <div class="g-actions" style="padding-top:0; border-top:none;">
@@ -1014,7 +1013,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <div class="s-summary">
       <div class="s-card s-card-click" id="s-card-instalaciones"><div class="s-card-num" id="s-total-instalaciones">0</div><div class="s-card-label">Instalaciones activas</div></div>
       <div class="s-card alert s-card-click" id="s-card-sos"><div class="s-card-num" id="s-total-sos">0</div><div class="s-card-label">SOS activos</div></div>
-      <div class="s-card alert s-card-click" id="s-card-hv"><div class="s-card-num" id="s-total-hv">0</div><div class="s-card-label">Hombre vivo pendiente</div></div>
+      <div class="s-card alert s-card-click" id="s-card-hv"><div class="s-card-num" id="s-total-hv">0</div><div class="s-card-label">Guardia Activo pendiente</div></div>
       <div class="s-card s-card-click" id="s-card-novedades"><div class="s-card-num" id="s-total-novedades">0</div><div class="s-card-label">Novedades</div></div>
     </div>
     <div id="s-summary-detail" class="s-summary-detail" style="display:none;"></div>
@@ -1050,6 +1049,19 @@ svg.leaflet-image-layer.leaflet-interactive path {
     <div id="lista-guardias-ronda"></div>
     <div class="modal-actions">
       <button class="m-cancel" id="elegir-guardia-cancel" style="width:100%;">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-eliminar-guardia">
+  <div class="modal">
+    <h3>Eliminar guardia del turno</h3>
+    <p class="hint" id="eliminar-guardia-nombre">Guardia: —</p>
+    <label style="font-size:11.5px; color:#6b7280; text-transform:uppercase; letter-spacing:0.04em; font-family:'IBM Plex Mono',monospace;">Motivo de la baja (obligatorio)</label>
+    <textarea id="eliminar-guardia-motivo" placeholder="Explica por qué se retira este guardia del turno..." style="margin-top:6px;"></textarea>
+    <div class="modal-actions">
+      <button class="m-cancel" id="eliminar-guardia-cancelar">Cancelar</button>
+      <button class="m-submit" id="eliminar-guardia-confirmar" style="background:var(--skip);">Eliminar del turno</button>
     </div>
   </div>
 </div>
@@ -1323,6 +1335,41 @@ svg.leaflet-image-layer.leaflet-interactive path {
     if(e.key === 'Enter'){ e.preventDefault(); agregarGuardiaEnCurso(); }
   });
 
+  let guardiaAEliminar = null;
+  function abrirEliminarGuardia(nombre){
+    guardiaAEliminar = nombre;
+    document.getElementById('eliminar-guardia-nombre').textContent = `Guardia: ${nombre}`;
+    document.getElementById('eliminar-guardia-motivo').value = '';
+    document.getElementById('modal-eliminar-guardia').classList.add('show');
+  }
+  document.getElementById('eliminar-guardia-cancelar').onclick = ()=>{
+    document.getElementById('modal-eliminar-guardia').classList.remove('show');
+    guardiaAEliminar = null;
+  };
+  document.getElementById('eliminar-guardia-confirmar').onclick = ()=>{
+    const t = turno(turnoActivoId);
+    const motivo = document.getElementById('eliminar-guardia-motivo').value.trim();
+    if(!motivo){ showToast('Escribe el motivo antes de confirmar'); return; }
+    if(!confirm(`¿Confirmas eliminar a ${guardiaAEliminar} de ${t.tipoLabel}?\n\nMotivo: ${motivo}`)) return;
+
+    t.guardiasPresentes = t.guardiasPresentes.filter(n=>n !== guardiaAEliminar);
+    // Queda registrado como novedad, para que el supervisor tenga trazabilidad del motivo.
+    const ahora = new Date();
+    novedadesGuardadas.unshift({
+      id: 'n'+Date.now(), turnoId: t.id, sitio: t.sitio, guardia: guardiaAEliminar,
+      categoria: 'moderado',
+      descripcion: `Guardia dado de baja del turno. Motivo: ${motivo}`,
+      fecha: ahora.toLocaleDateString('es-BO'),
+      hora: ahora.toLocaleTimeString('es-BO', {hour:'2-digit', minute:'2-digit'}),
+      minutosTurno: t._minutosTranscurridos, adjuntos: []
+    });
+
+    document.getElementById('modal-eliminar-guardia').classList.remove('show');
+    showToast(`${guardiaAEliminar} eliminado de ${t.tipoLabel}`);
+    guardiaAEliminar = null;
+    renderGuardia(); renderSupervisor();
+  };
+
   function comenzarTurno(){
     const t = turno(turnoActivoId);
     if(t.guardiasPresentes.length === 0){ showToast('Agrega al menos un guardia para comenzar el turno'); return; }
@@ -1377,7 +1424,12 @@ svg.leaflet-image-layer.leaflet-interactive path {
     document.getElementById('g-turno-meta').textContent = t.tipoLabel;
 
     document.getElementById('g-guardias-bloque').style.display = 'block';
-    document.getElementById('g-guardias-lista').innerHTML = t.guardiasPresentes.map(n=>`<li>${n}</li>`).join('');
+    document.getElementById('g-guardias-lista').innerHTML = t.guardiasPresentes.map(n=>
+      `<li><span>${n}</span><button class="btn-quitar-guardia" data-nombre="${n}">Eliminar</button></li>`
+    ).join('');
+    document.querySelectorAll('.btn-quitar-guardia').forEach(btn=>{
+      btn.onclick = ()=> abrirEliminarGuardia(btn.dataset.nombre);
+    });
 
     const r = rondaActiva(t);
     const statusEl = document.getElementById('ronda-status');
@@ -1389,16 +1441,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
     if(r){
       statusEl.innerHTML = `<span class="badge-on"><span class="live-dot"></span>Ronda ${r.numero} en curso</span>`;
-      document.getElementById('g-stat-puntos').textContent = r.puntos.length;
-      const minUltimo = r.puntos.length ? (t._minutosTranscurridos - r.puntos[0].minuto) : (t._minutosTranscurridos - r.inicioMinuto);
-      document.getElementById('g-stat-ultimo').textContent = minUltimo + 'm';
-      document.getElementById('g-stat-ultimo-wrap').classList.toggle('warn', minUltimo >= 15);
     } else {
       const n = t.rondas.length;
       statusEl.innerHTML = `<span class="badge-off">${n === 0 ? 'Ninguna ronda iniciada todavía' : `${n} ronda(s) completada(s) — lista para iniciar la siguiente`}</span>`;
-      document.getElementById('g-stat-puntos').textContent = '0';
-      document.getElementById('g-stat-ultimo').textContent = '--';
-      document.getElementById('g-stat-ultimo-wrap').classList.remove('warn');
     }
 
     actualizarDisplayHV(t);
@@ -1635,12 +1680,12 @@ svg.leaflet-image-layer.leaflet-interactive path {
         }
         body.appendChild(secNovedades);
 
-        // 4. Hombre Vivo activo
+        // 4. Guardia Activo
         const hvTurnos = turnosDelSitio.filter(t=>t.hvPendiente);
         const secHV = document.createElement('div');
-        secHV.innerHTML = `<div class="instalacion-section-title">Hombre Vivo</div>` + (hvTurnos.length
+        secHV.innerHTML = `<div class="instalacion-section-title">Guardia Activo</div>` + (hvTurnos.length
           ? hvTurnos.map(t=>`<div class="instalacion-line alert-text">⚠ Pendiente — ${t.tipoLabel} (${nombreGuardias(t)})</div>`).join('')
-          : `<div class="instalacion-line muted">Sin alertas de Hombre Vivo.</div>`);
+          : `<div class="instalacion-line muted">Sin alertas de Guardia Activo.</div>`);
         body.appendChild(secHV);
 
         // 5. SOS activas
@@ -1707,7 +1752,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
         : `<div class="s-summary-detail-empty">Ningún SOS activo por el momento.</div>`);
     } else if(summaryDetailAbierto === 'hv'){
       const afectados = turnos.filter(t=>t.hvPendiente);
-      panel.innerHTML = `<div class="s-summary-detail-title">Hombre Vivo pendiente en:</div>` + (afectados.length
+      panel.innerHTML = `<div class="s-summary-detail-title">Guardia Activo pendiente en:</div>` + (afectados.length
         ? afectados.map(t=>`<div class="s-summary-detail-item"><strong>${t.sitio}</strong><span>${t.tipoLabel}${t.iniciado ? ' · '+nombreGuardias(t) : ''}</span></div>`).join('')
         : `<div class="s-summary-detail-empty">Ningún check-in pendiente por el momento.</div>`);
     } else if(summaryDetailAbierto === 'novedades'){
@@ -1767,7 +1812,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   let mapaRondaSeleccionada = 'todas';
 
   function textoOpcionTurno(t){
-    return t.iniciado ? `${t.tipoLabel} · ${nombreGuardias(t)}` : `${t.tipoLabel} (sin iniciar)`;
+    return t.iniciado ? t.tipoLabel : `${t.tipoLabel} (sin iniciar)`;
   }
 
   function actualizarTextosSelectorTurno(){
@@ -2014,8 +2059,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
     document.getElementById('modo-prueba-toggle').classList.toggle('activo', modoPruebaActivo);
     turnos.forEach(t=>{ if(!t.hvPendiente) t._hvSegundosRestantes = intervaloHV(t); });
     showToast(modoPruebaActivo
-      ? '🧪 Modo prueba activado — Hombre Vivo cada 25s, sin importar la hora'
-      : 'Modo prueba desactivado — Hombre Vivo vuelve al horario real (23:00–07:00, cada 40 min)');
+      ? '🧪 Modo prueba activado — Guardia Activo cada 25s, sin importar la hora'
+      : 'Modo prueba desactivado — Guardia Activo vuelve al horario real (23:00–07:00, cada 40 min)');
     renderGuardia(); renderSupervisor();
   };
 
@@ -2050,7 +2095,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     if(!('Notification' in window) || Notification.permission !== 'granted') return;
     try{
       const t = turno(turnoActivoId);
-      new Notification('⚠ CSP Control · Hombre Vivo', {
+      new Notification('⚠ CSP Control · Guardia Activo', {
         body: `${nombreGuardias(t)} — confirma que estás bien`,
         vibrate: [300,150,300,150,300],
         tag: 'hombre-vivo',
@@ -2076,7 +2121,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     const activo = modoPruebaActivo || dentroDeVentanaHV();
     if(!activo){
       el.textContent = 'Inactivo';
-      document.getElementById('g-stat-hv-wrap').title = `Hombre Vivo solo opera de ${HV_HORA_INICIO}:00 a 0${HV_HORA_FIN}:00`;
+      document.getElementById('g-stat-hv-wrap').title = `Guardia Activo solo opera de ${HV_HORA_INICIO}:00 a 0${HV_HORA_FIN}:00`;
     } else {
       el.textContent = t.hvPendiente ? '¡Ahora!' : Math.max(0,Math.floor(t._hvSegundosRestantes/60)) + 'm';
       document.getElementById('g-stat-hv-wrap').title = '';
@@ -2090,10 +2135,10 @@ svg.leaflet-image-layer.leaflet-interactive path {
     if(t.hvPendiente){
       t.hvPendiente = false;
       t._hvSegundosRestantes = intervaloHV(t);
-      showToast('Hombre vivo confirmado ✓');
+      showToast('Guardia Activo confirmado ✓');
     } else {
       const activo = modoPruebaActivo || dentroDeVentanaHV();
-      showToast(activo ? `Sin check-in pendiente — próximo en ~${Math.ceil(t._hvSegundosRestantes/60)} min` : `Hombre Vivo inactivo fuera del horario ${HV_HORA_INICIO}:00–0${HV_HORA_FIN}:00`);
+      showToast(activo ? `Sin check-in pendiente — próximo en ~${Math.ceil(t._hvSegundosRestantes/60)} min` : `Guardia Activo inactivo fuera del horario ${HV_HORA_INICIO}:00–0${HV_HORA_FIN}:00`);
     }
     renderGuardia(); renderSupervisor();
   };
@@ -2108,8 +2153,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
     if('Notification' in window){
       Notification.requestPermission().then(permiso=>{
         showToast(permiso === 'granted'
-          ? '🔔 Notificaciones activadas — así vibrará el aviso de Hombre Vivo'
-          : 'Notificaciones bloqueadas: sin ellas, la alerta de Hombre Vivo no podrá vibrar sola');
+          ? '🔔 Notificaciones activadas — así vibrará el aviso de Guardia Activo'
+          : 'Notificaciones bloqueadas: sin ellas, la alerta de Guardia Activo no podrá vibrar sola');
       });
     } else {
       showToast('Este navegador no soporta notificaciones');
