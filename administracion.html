@@ -943,7 +943,6 @@ svg.leaflet-image-layer.leaflet-interactive path {
   <div class="brandbar">
     <span class="brand-dot"></span>
     <span class="brand-name">CSP Control</span>
-    <button id="modo-prueba-toggle" class="modo-prueba-toggle">🧪 Modo prueba: <strong id="modo-prueba-estado">OFF</strong></button>
   </div>
 
   <div class="tabbar">
@@ -2595,17 +2594,6 @@ svg.leaflet-image-layer.leaflet-interactive path {
     return modoPruebaActivo ? HV_INTERVALO_DEMO_SEG : HV_INTERVALO_PRODUCCION_SEG;
   }
   turnos.forEach(t=>{ t._hvSegundosRestantes = intervaloHV(t); });
-
-  document.getElementById('modo-prueba-toggle').onclick = ()=>{
-    modoPruebaActivo = !modoPruebaActivo;
-    document.getElementById('modo-prueba-estado').textContent = modoPruebaActivo ? 'ON' : 'OFF';
-    document.getElementById('modo-prueba-toggle').classList.toggle('activo', modoPruebaActivo);
-    turnos.forEach(t=>{ if(!t.hvPendiente) t._hvSegundosRestantes = intervaloHV(t); });
-    showToast(modoPruebaActivo
-      ? '🧪 Modo prueba activado — Guardia Activo cada 25s, sin importar la hora'
-      : 'Modo prueba desactivado — Guardia Activo vuelve al horario real (23:00–07:00, cada 40 min)');
-    renderGuardia(); renderSupervisor();
-  };
 
   let audioCtx = null;
   let alertaHVInterval = null;
