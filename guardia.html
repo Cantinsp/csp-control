@@ -2802,6 +2802,15 @@ svg.leaflet-image-layer.leaflet-interactive path {
       datos.forEach((t, i)=>{
         if(!turnos[i]) return;
         Object.keys(t).forEach(k=>{ if(k !== '_minutosTranscurridos' && k !== '_hvSegundosRestantes') turnos[i][k] = t[k]; });
+        // Firebase borra los arreglos vacios ([]) al guardarlos -- si una ronda quedo con
+        // "puntos" o "trayectoria" vacios, el campo desaparece del todo al volver. Se rellenan
+        // aqui para que el resto del codigo nunca reciba undefined donde espera un arreglo.
+        if(!Array.isArray(turnos[i].guardiasPresentes)) turnos[i].guardiasPresentes = [];
+        if(!Array.isArray(turnos[i].rondas)) turnos[i].rondas = [];
+        turnos[i].rondas.forEach(r=>{
+          if(!Array.isArray(r.puntos)) r.puntos = [];
+          if(!Array.isArray(r.trayectoria)) r.trayectoria = [];
+        });
       });
       sincronizandoDesdeFirebase = false;
       renderGuardia(); renderSupervisor();
