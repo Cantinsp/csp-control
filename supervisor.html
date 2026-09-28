@@ -2813,6 +2813,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
         });
       });
       sincronizandoDesdeFirebase = false;
+      // Si llega una ronda nueva (o se cierra una) desde otro dispositivo mientras el mapa
+      // esta abierto, el desplegable "Ronda 1 / Ronda 2" tambien se tiene que refrescar --
+      // si no, se queda pegado con las rondas que existian cuando se abrio esa pantalla.
+      if(typeof rondaMap !== 'undefined' && rondaMap) poblarSelectorRondas();
+      if(typeof rondaMapAdmin !== 'undefined' && rondaMapAdmin) poblarSelectorRondasAdmin();
       renderGuardia(); renderSupervisor();
       if(document.getElementById('view-administracion').classList.contains('active')) renderAdministracion();
     }
