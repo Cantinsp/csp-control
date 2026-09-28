@@ -1384,12 +1384,20 @@ svg.leaflet-image-layer.leaflet-interactive path {
     const t = turno(turnoActivoId);
     const r = rondaActiva(t);
     if(!r){ showToast('No hay ninguna ronda en curso'); return; }
-    if(r.puntos.length === 0){ showToast('Marca al menos un punto antes de finalizar la ronda'); return; }
+    // El recorrido cuenta como evidencia valida aunque el guardia no haya tocado
+    // "Marcar punto" ni una vez -- el rastreo automatico de fondo ya va guardando el trayecto.
+    if(r.puntos.length === 0 && r.trayectoria.length === 0){
+      showToast('Marca al menos un punto (o espera a que el rastreo automático registre el recorrido) antes de finalizar la ronda');
+      return;
+    }
     r.finMinuto = t._minutosTranscurridos;
     r.finTimestamp = Date.now();
     r.horaFin = horaCorta();
     detenerTrackeoAutomatico();
-    showToast(`✓ Ronda ${r.numero} finalizada · ${r.puntos.length} punto(s)`);
+    const resumen = r.puntos.length > 0
+      ? `${r.puntos.length} punto(s)`
+      : `recorrido automático (${r.trayectoria.length} muestra(s))`;
+    showToast(`✓ Ronda ${r.numero} finalizada · ${resumen}`);
     guardarTurnos();
     renderGuardia(); renderSupervisor();
   }
