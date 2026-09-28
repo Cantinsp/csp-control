@@ -1223,7 +1223,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   // Cada elemento de "rondas": { numero, guardia, inicioMinuto, finMinuto (null = en curso), puntos:[{minuto,hora,lat,lng,precision,esSimulado}] }
   function rondaActiva(t){
     const ultima = t.rondas[t.rondas.length - 1];
-    return (ultima && ultima.finMinuto === null) ? ultima : null;
+    return (ultima && ultima.finMinuto == null) ? ultima : null;
   }
   function todosLosPuntos(t){
     // aplana todas las rondas en un solo arreglo, más reciente primero (para stats generales del turno)
@@ -1613,7 +1613,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     for(let i = t.rondas.length - 1; i >= 0; i--){
       const ronda = t.rondas[i];
       const grupo = document.createElement('div');
-      grupo.className = 'ronda-group' + (ronda.finMinuto === null ? ' en-curso' : '');
+      grupo.className = 'ronda-group' + (ronda.finMinuto == null ? ' en-curso' : '');
       const rango = ronda.horaFin
         ? `${ronda.horaInicio} → ${ronda.horaFin} · ${duracionRonda(ronda)}`
         : `${ronda.horaInicio} → en curso · ${duracionRonda(ronda)}`;
@@ -2217,7 +2217,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     t.rondas.forEach(r=>{
       const opt = document.createElement('option');
       opt.value = String(r.numero);
-      opt.textContent = `Ronda ${r.numero}` + (r.finMinuto === null ? ' (en curso)' : '') + ` · ${r.puntos.length} pt`;
+      opt.textContent = `Ronda ${r.numero}` + (r.finMinuto == null ? ' (en curso)' : '') + ` · ${r.puntos.length} pt`;
       selectRonda.appendChild(opt);
     });
     // si la ronda seleccionada ya no existe para este turno, vuelve a "todas"
@@ -2279,7 +2279,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
             L.polyline(trLatLngs, { color:'#1B7C9E', weight:2, opacity:0.5 }).addTo(rondaMapLayer);
           }
           // Posición en vivo: solo si esta ronda sigue en curso
-          if(ronda.finMinuto === null){
+          if(ronda.finMinuto == null){
             const ultima = ronda.trayectoria[ronda.trayectoria.length - 1];
             const iconoLive = L.divIcon({
               className: 'live-position-marker',
@@ -2393,7 +2393,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     t.rondas.forEach(r=>{
       const opt = document.createElement('option');
       opt.value = String(r.numero);
-      opt.textContent = `Ronda ${r.numero}` + (r.finMinuto === null ? ' (en curso)' : '') + ` · ${r.puntos.length} pt`;
+      opt.textContent = `Ronda ${r.numero}` + (r.finMinuto == null ? ' (en curso)' : '') + ` · ${r.puntos.length} pt`;
       selectRonda.appendChild(opt);
     });
     const valores = Array.from(selectRonda.options).map(o=>o.value);
@@ -2446,7 +2446,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
           if(trLatLngs.length > 1){
             L.polyline(trLatLngs, { color:'#1B7C9E', weight:2, opacity:0.5 }).addTo(rondaMapLayerAdmin);
           }
-          if(ronda.finMinuto === null){
+          if(ronda.finMinuto == null){
             const ultima = ronda.trayectoria[ronda.trayectoria.length - 1];
             const iconoLive = L.divIcon({
               className: 'live-position-marker',
