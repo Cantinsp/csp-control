@@ -2726,6 +2726,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     let cambioActivo = false;
     turnos.forEach(t=>{
       if(t.hvPendiente) return;
+      if(!t.iniciado) return; // un turno que no comenzó no genera Guardia Activo pendiente
       const activo = modoPruebaActivo || dentroDeVentanaHV();
       if(!activo) return; // fuera de horario: no cuenta, no dispara
       t._hvSegundosRestantes -= 1;
