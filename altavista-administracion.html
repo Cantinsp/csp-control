@@ -720,6 +720,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
   .g-sub{ font-size:13px; color:rgba(245,243,238,0.55); margin-top:2px; }
   .g-guardias-lista{ list-style:none; margin:8px 0 0; padding:0; }
   .g-guardias-lista li{ font-size:13.5px; color:rgba(245,243,238,0.85); padding:3px 0 3px 16px; position:relative; display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .g-acciones-guardia{ display:flex; gap:6px; flex-shrink:0; }
+  .btn-salida-guardia{ background:none; border:1px solid rgba(212,175,55,0.5); color:var(--gold-soft); font-size:10.5px; font-family:'IBM Plex Mono',monospace; padding:3px 8px; border-radius:12px; cursor:pointer; flex-shrink:0; }
+  .g-desde{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:rgba(245,243,238,0.45); margin-left:6px; }
   .btn-quitar-guardia{ background:none; border:1px solid rgba(179,65,59,0.4); color:#e08a83; font-size:10.5px; font-family:'IBM Plex Mono',monospace; padding:3px 8px; border-radius:12px; cursor:pointer; flex-shrink:0; }
   .g-guardias-lista li::before{ content:'•'; color:var(--gold); position:absolute; left:0; }
   #input-guardia-extra{ border-radius:6px; border:1px solid var(--line); background:var(--charcoal); color:var(--off-white); font-family:'Inter',sans-serif; }
@@ -930,6 +933,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
   .novedad-empty{ color:#6b7280; font-size:13px; }
 
   .map-controls{ display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+  .map-controls input[type=date]{ padding:7px 10px; border-radius:8px; border:1px solid var(--line-light); background:#fff; font-family:'Inter',sans-serif; font-size:13px; color:var(--navy); }
+  #btn-terminar-turno{ width:100%; margin-top:10px; background:transparent; border:1px solid rgba(179,65,59,0.7); color:#e7a39e; padding:9px 12px; border-radius:8px; font-family:'Oswald',sans-serif; font-weight:600; font-size:12.5px; letter-spacing:0.04em; text-transform:uppercase; cursor:pointer; }
   .map-controls select{ padding:8px 12px; border-radius:8px; border:1px solid var(--line-light); background:#fff; font-family:'Inter',sans-serif; font-size:13px; color:var(--navy); }
   .map-legend{ font-size:11.5px; color:#6b7280; display:flex; gap:14px; align-items:center; }
   .map-legend .dot{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:4px; vertical-align:middle; }
@@ -971,6 +976,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
           <input type="text" id="input-guardia-extra" list="lista-guardias-conocidos" placeholder="Nombre del guardia que llega..." autocomplete="off" style="flex:1; font-size:12.5px; padding:8px 10px;">
           <button id="btn-agregar-guardia-extra" style="flex-shrink:0; background:rgba(245,243,238,0.08); border:1px solid var(--line); color:var(--off-white); padding:0 12px; border-radius:6px; font-family:'Oswald',sans-serif; font-weight:600; font-size:12px; cursor:pointer;">+ Sumar</button>
         </div>
+        <button id="btn-terminar-turno">■ Terminar turno · registrar salida</button>
       </div>
     </div>
 
@@ -1056,6 +1062,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
     <div class="s-section-title">Mapa de rondas</div>
     <div class="map-controls">
+      <input type="date" id="map-fecha-select" title="Consultar por fecha">
       <select id="map-turno-select"></select>
       <select id="map-ronda-select"></select>
       <span id="map-puntos-count" style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#6b7280;"></span>
@@ -1065,6 +1072,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
         <span><span class="dot" style="background:#1B7C9E;"></span>Posición en vivo</span>
       </div>
     </div>
+    <div id="map-turno-guardias" class="map-ronda-info" style="display:none;"></div>
     <div id="map-ronda-info" class="map-ronda-info" style="display:none;"></div>
     <div id="ronda-map"></div>
     <div id="ronda-map-empty" class="map-empty" style="display:none;">Esta ronda todavía no tiene puntos marcados para mostrar en el mapa.</div>
@@ -1089,6 +1097,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
     <div class="s-section-title">Mapa de rondas</div>
     <div class="map-controls">
+      <input type="date" id="map-fecha-select-admin" title="Consultar por fecha">
       <select id="map-turno-select-admin"></select>
       <select id="map-ronda-select-admin"></select>
       <span id="map-puntos-count-admin" style="font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:#6b7280;"></span>
@@ -1098,6 +1107,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
         <span><span class="dot" style="background:#1B7C9E;"></span>Posición en vivo</span>
       </div>
     </div>
+    <div id="map-turno-guardias-admin" class="map-ronda-info" style="display:none;"></div>
     <div id="map-ronda-info-admin" class="map-ronda-info" style="display:none;"></div>
     <div id="ronda-map-admin"></div>
     <div id="ronda-map-admin-empty" class="map-empty" style="display:none;">Esta ronda todavía no tiene puntos marcados para mostrar en el mapa.</div>
@@ -1325,38 +1335,83 @@ svg.leaflet-image-layer.leaflet-interactive path {
     });
     showToast(`▶ Ronda ${t.rondas.length} iniciada · ${guardiaNombre}`);
     iniciarTrackeoAutomatico(t);
+    recordarRondaPropia(t);
     guardarTurnos();
     renderGuardia(); renderSupervisor();
   }
 
   // ===================== RASTREO AUTOMÁTICO DE FONDO (mientras hay una ronda activa) =====================
-  const TRACKEO_INTERVALO_MIN_MS = 15000; // como máximo una muestra cada ~15s
+  const TRACKEO_INTERVALO_MIN_MS = 10000;  // una muestra cada ~10s mientras camina
+  const TRACKEO_PRECISION_MAX_M = 60;     // lecturas peores que esto se descartan (hacían "saltar" el recorrido)
   let watchIdTrayectoria = null;
   let ultimaMuestraTrayectoria = 0;
+  let wakeLockRonda = null;
+
+  // Mantiene la pantalla encendida durante la ronda: si el celular se bloquea, Chrome deja de entregar el GPS.
+  async function pedirWakeLock(){
+    try{
+      if('wakeLock' in navigator && !wakeLockRonda){
+        wakeLockRonda = await navigator.wakeLock.request('screen');
+        wakeLockRonda.addEventListener('release', ()=>{ wakeLockRonda = null; });
+      }
+    } catch(e){ /* no crítico */ }
+  }
+  function soltarWakeLock(){
+    try{ if(wakeLockRonda) wakeLockRonda.release(); } catch(e){}
+    wakeLockRonda = null;
+  }
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.visibilityState !== 'visible' || watchIdTrayectoria === null) return;
+    const t = turno(turnoActivoId);
+    if(rondaActiva(t)) iniciarTrackeoAutomatico(t); // al volver a la app se reengancha el GPS y la pantalla encendida
+  });
+
+  // Solo el celular que INICIÓ la ronda rastrea (el de portería u otros no deben escribir recorrido).
+  function recordarRondaPropia(t){
+    try{ const r = rondaActiva(t); if(r) localStorage.setItem('cspRondaPropia', JSON.stringify({ turnoId:t.id, inicioTimestamp:r.inicioTimestamp })); } catch(e){}
+  }
+  function olvidarRondaPropia(){ try{ localStorage.removeItem('cspRondaPropia'); } catch(e){} }
+  function reanudarTrackeoSiCorresponde(){
+    if(!/guardia/i.test(location.pathname) || watchIdTrayectoria !== null) return;
+    let g = null;
+    try{ g = JSON.parse(localStorage.getItem('cspRondaPropia') || 'null'); } catch(e){}
+    if(!g) return;
+    const t = turno(g.turnoId);
+    const r = t && rondaActiva(t);
+    if(r && r.inicioTimestamp === g.inicioTimestamp) iniciarTrackeoAutomatico(t);
+    else if(t && !r) olvidarRondaPropia();
+  }
+
+  // Escritura liviana: solo la muestra nueva (no todo el arreglo de turnos), para no gastar la cuota de Firebase.
+  function guardarMuestraTrayectoria(t, r, idx, muestra){
+    if(sincronizandoDesdeFirebase) return;
+    const i = turnos.indexOf(t), j = t.rondas.indexOf(r);
+    if(i < 0 || j < 0) return;
+    db.ref(`altaVista/turnos/${i}/rondas/${j}/trayectoria/${idx}`).set(muestra).catch(e=>console.error('Error guardando recorrido:', e));
+  }
 
   function iniciarTrackeoAutomatico(t){
     if(!navigator.geolocation) return;
     detenerTrackeoAutomatico(); // por si quedó uno corriendo
     ultimaMuestraTrayectoria = 0;
+    pedirWakeLock();
     watchIdTrayectoria = navigator.geolocation.watchPosition(
       pos => {
         const ahora = Date.now();
         if(ahora - ultimaMuestraTrayectoria < TRACKEO_INTERVALO_MIN_MS) return;
-        ultimaMuestraTrayectoria = ahora;
+        if(pos.coords.accuracy > TRACKEO_PRECISION_MAX_M) return;
         const r = rondaActiva(t); // siempre la ronda vigente, nunca una referencia vieja
         if(!r){ detenerTrackeoAutomatico(); return; }
-        r.trayectoria.push({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          precision: Math.round(pos.coords.accuracy),
-          ts: ahora
-        });
+        ultimaMuestraTrayectoria = ahora;
+        if(!Array.isArray(r.trayectoria)) r.trayectoria = [];
+        const muestra = { lat: pos.coords.latitude, lng: pos.coords.longitude, precision: Math.round(pos.coords.accuracy), ts: ahora };
+        r.trayectoria.push(muestra);
         if(rondaMap && document.getElementById('view-supervisor').classList.contains('active')) renderMapa();
         if(rondaMapAdmin && document.getElementById('view-administracion').classList.contains('active')) renderMapaAdmin();
-        guardarTurnos();
+        guardarMuestraTrayectoria(t, r, r.trayectoria.length - 1, muestra);
       },
-      err => { /* si falla el rastreo automático no interrumpe la ronda — el guardia sigue marcando puntos a mano */ },
-      { enableHighAccuracy:true, maximumAge:10000, timeout:20000 }
+      err => { /* si falla el rastreo automático no interrumpe la ronda */ },
+      { enableHighAccuracy:true, maximumAge:5000, timeout:20000 }
     );
   }
 
@@ -1365,6 +1420,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       navigator.geolocation.clearWatch(watchIdTrayectoria);
       watchIdTrayectoria = null;
     }
+    soltarWakeLock();
   }
 
   function abrirSelectorGuardiaRonda(t){
@@ -1402,6 +1458,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     r.finTimestamp = Date.now();
     r.horaFin = horaCorta();
     detenerTrackeoAutomatico();
+    olvidarRondaPropia();
     const resumen = r.puntos.length > 0
       ? `${r.puntos.length} punto(s)`
       : `recorrido automático (${r.trayectoria.length} muestra(s))`;
@@ -1410,40 +1467,43 @@ svg.leaflet-image-layer.leaflet-interactive path {
     renderGuardia(); renderSupervisor();
   }
 
+  let marcandoPunto = false;
   function marcarPunto(usarSimulada){
+    if(usarSimulada) return; // la ubicación simulada ya no existe: un punto solo se registra con GPS real
     const t = turno(turnoActivoId);
-    const r = rondaActiva(t);
-    if(!r){ showToast('Primero inicia una ronda para poder marcar puntos'); return; }
+    if(!rondaActiva(t)){ showToast('Primero inicia una ronda para poder marcar puntos'); return; }
+    if(marcandoPunto) return;
+    if(!navigator.geolocation){ showToast('⚠ Este celular no permite obtener la ubicación. No se registró el punto'); return; }
 
-    const registrar = (lat, lng, precision, esSimulado) => {
+    const registrar = (lat, lng, precision) => {
+      // la ronda se vuelve a buscar AHORA: mientras se esperaba el GPS pudo llegar una actualización de Firebase
+      const r = rondaActiva(t);
+      if(!r){ showToast('La ronda ya no está en curso'); return; }
+      if(!Array.isArray(r.puntos)) r.puntos = [];
+      if(!Array.isArray(r.trayectoria)) r.trayectoria = [];
       r.puntos.unshift({
         id: 'p'+Date.now(),
         minuto: t._minutosTranscurridos,
         hora: new Date().toLocaleTimeString('es-BO', {hour:'2-digit', minute:'2-digit', second:'2-digit'}),
-        lat, lng, precision, esSimulado: !!esSimulado
+        lat, lng, precision, esSimulado: false
       });
-      if(esSimulado){
-        showToast(`⚠ Sin GPS real — se guardó una ubicación de referencia (revisa señal/permiso)`);
-      } else {
-        showToast(`📍 Ronda ${r.numero} · punto registrado (±${precision}m)`);
-      }
+      r.trayectoria.push({ lat, lng, precision, ts: Date.now() }); // la marca también ancla el recorrido
+      showToast(`📍 Ronda ${r.numero} · punto registrado (±${precision}m)`);
       renderGuardia(); renderSupervisor();
       guardarTurnos();
     };
 
-    if(usarSimulada){
-      registrar(posicionSimulada.lat, posicionSimulada.lng, posicionSimulada.precision_m, true);
-      return;
-    }
-    if(!navigator.geolocation){
-      registrar(posicionSimulada.lat, posicionSimulada.lng, posicionSimulada.precision_m, true);
-      return;
-    }
+    marcandoPunto = true;
+    showToast('Buscando ubicación GPS…');
     navigator.geolocation.getCurrentPosition(
-      pos => registrar(pos.coords.latitude, pos.coords.longitude, Math.round(pos.coords.accuracy), false),
-      err => {
-        showToast('⚠ No se pudo obtener GPS: ' + err.message + ' — intenta de nuevo en un lugar más despejado');
-        registrar(posicionSimulada.lat, posicionSimulada.lng, posicionSimulada.precision_m, true);
+      pos => { marcandoPunto = false; registrar(pos.coords.latitude, pos.coords.longitude, Math.round(pos.coords.accuracy)); },
+      () => {
+        // segundo intento con ubicación aproximada (wifi/antenas), más rápida bajo techo
+        navigator.geolocation.getCurrentPosition(
+          pos => { marcandoPunto = false; registrar(pos.coords.latitude, pos.coords.longitude, Math.round(pos.coords.accuracy)); },
+          err => { marcandoPunto = false; showToast('⚠ No se pudo obtener la ubicación (' + err.message + '). NO se registró el punto: acércate a un lugar despejado e inténtalo de nuevo'); },
+          { enableHighAccuracy:false, timeout:10000, maximumAge:30000 }
+        );
       },
       { enableHighAccuracy:true, timeout:15000, maximumAge:0 }
     );
@@ -1493,6 +1553,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     if(t.guardiasPresentes.includes(nombre)){ showToast('Ese nombre ya está en la lista'); return; }
     t.guardiasPresentes.push(nombre);
     registrarNombreEnHistorial(nombre);
+    registrarEntrada(t, nombre);
     input.value = '';
     showToast(`${nombre} sumado a ${t.tipoLabel}`);
     guardarTurnos();
@@ -1521,6 +1582,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     if(!confirm(`¿Confirmas eliminar a ${guardiaAEliminar} de ${t.tipoLabel}?\n\nMotivo: ${motivo}`)) return;
 
     t.guardiasPresentes = t.guardiasPresentes.filter(n=>n !== guardiaAEliminar);
+    cerrarAsistencia(t, guardiaAEliminar, motivo);
     // Queda registrado como novedad, para que el supervisor tenga trazabilidad del motivo.
     const ahora = new Date();
     novedadesGuardadas.unshift({
@@ -1544,11 +1606,108 @@ svg.leaflet-image-layer.leaflet-interactive path {
     const t = turno(turnoActivoId);
     if(t.guardiasPresentes.length === 0){ showToast('Agrega al menos un guardia para comenzar el turno'); return; }
     t.iniciado = true;
+    t.fechaInicio = fechaHoyISO();
+    t.horaInicio = horaHHmm();
+    t.asistencia = t.guardiasPresentes.map(n=>({ nombre:n, entrada:t.horaInicio }));
     showToast(`${t.tipoLabel} iniciado · ${nombreGuardias(t)}`);
     guardarTurnos();
     renderGuardia(); renderSupervisor();
   }
   document.getElementById('btn-comenzar-turno').onclick = comenzarTurno;
+
+  function escHtml(s){ return String(s).replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+
+  // Asistencia: una fila por entrada de guardia { nombre, entrada, salida?, motivo? }
+  function entradaDe(t, nombre){
+    const a = Array.isArray(t.asistencia) ? t.asistencia : [];
+    for(let i = a.length - 1; i >= 0; i--){ if(a[i].nombre === nombre && !a[i].salida) return a[i].entrada; }
+    return null;
+  }
+  function registrarEntrada(t, nombre){
+    if(!Array.isArray(t.asistencia)) t.asistencia = [];
+    t.asistencia.push({ nombre, entrada: horaHHmm() });
+  }
+  function cerrarAsistencia(t, nombre, motivo){
+    if(!Array.isArray(t.asistencia)) t.asistencia = [];
+    for(let i = t.asistencia.length - 1; i >= 0; i--){
+      const x = t.asistencia[i];
+      if(x.nombre === nombre && !x.salida){ x.salida = horaHHmm(); if(motivo) x.motivo = motivo; return; }
+    }
+    // turno anterior a este cambio: no había fila de entrada; se crea con la hora de inicio del turno
+    const fila = { nombre, entrada: t.horaInicio || t.inicio, salida: horaHHmm() };
+    if(motivo) fila.motivo = motivo;
+    t.asistencia.push(fila);
+  }
+
+  // Salida de UN guardia: queda registrada su hora y deja de figurar como presente.
+  function salidaGuardia(nombre){
+    const t = turno(turnoActivoId);
+    if(!nombre || !t.guardiasPresentes.includes(nombre)) return;
+    const r = rondaActiva(t);
+    if(r && r.guardia === nombre){ showToast(`${nombre} tiene una ronda en curso: finalízala antes de registrar su salida`); return; }
+    const hora = horaHHmm();
+    if(!confirm(`¿Registrar la salida de ${nombre}?\n\nHora de salida: ${hora}`)) return;
+    t.guardiasPresentes = t.guardiasPresentes.filter(n=>n !== nombre);
+    cerrarAsistencia(t, nombre);
+    showToast(`✓ Salida de ${nombre} registrada · ${hora}`);
+    guardarTurnos();
+    renderGuardia(); renderSupervisor();
+    if(t.guardiasPresentes.length === 0 && t.iniciado){
+      if(confirm('No quedan guardias en el turno.\n\n¿Terminar el turno ahora?')) terminarTurno();
+    }
+  }
+
+  function fechaHoyISO(d){
+    d = d || new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  function horaHHmm(d){
+    d = d || new Date();
+    return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+
+  // Termina el turno: registra la salida de los guardias, archiva el turno completo en el
+  // historial (altaVista/historialTurnos) y deja el turno vacío para el siguiente.
+  let terminandoTurno = false;
+  function terminarTurno(){
+    const t = turno(turnoActivoId);
+    if(!t.iniciado){ showToast('Este turno todavía no comenzó'); return; }
+    if(rondaActiva(t)){ showToast('Finaliza la ronda en curso antes de terminar el turno'); return; }
+    if(terminandoTurno) return;
+    const ahora = new Date();
+    const horaSalida = horaHHmm(ahora);
+    if(!confirm(`¿Terminar ${t.tipoLabel}?\n\nSalen: ${nombreGuardias(t)}\nHora de salida de cada uno: ${horaSalida}\n\nEl turno queda guardado en el historial y se libera para el siguiente turno.`)) return;
+
+    const fecha = t.fechaInicio || fechaHoyISO(ahora);
+    const horaInicio = t.horaInicio || t.inicio;
+    const key = `${fecha}_${t.id}_${String(horaInicio).replace(':','')}`;
+    const asistenciaFinal = (Array.isArray(t.asistencia) && t.asistencia.length
+      ? t.asistencia.map(x=>({ ...x }))
+      : t.guardiasPresentes.map(n=>({ nombre:n, entrada:horaInicio })));
+    asistenciaFinal.forEach(x=>{ if(!x.salida && t.guardiasPresentes.includes(x.nombre)) x.salida = horaSalida; });
+    const nombresTurno = []; asistenciaFinal.forEach(x=>{ if(!nombresTurno.includes(x.nombre)) nombresTurno.push(x.nombre); });
+    const registro = JSON.parse(JSON.stringify({
+      fecha, turnoId: t.id, tipoLabel: t.tipoLabel, sitio: t.sitio,
+      horarioTurno: `${t.inicio}–${t.fin}`, horaInicio, horaSalida,
+      guardias: nombresTurno, asistencia: asistenciaFinal, rondas: t.rondas, sosActivado: !!t.sos
+    }));
+    terminandoTurno = true;
+    showToast('Guardando turno en el historial…');
+    db.ref('altaVista/historialTurnos/' + key).set(registro).then(()=>{
+      t.iniciado = false; t.guardiasPresentes = []; t.asistencia = []; t.rondas = []; t.sos = false; t.hvPendiente = false;
+      t.fechaInicio = null; t.horaInicio = null; t._hvSegundosRestantes = intervaloHV(t);
+      detenerTrackeoAutomatico();
+      terminandoTurno = false;
+      showToast(`✓ ${t.tipoLabel} terminado · salida ${horaSalida}`);
+      guardarTurnos();
+      renderGuardia(); renderSupervisor();
+    }).catch(e=>{
+      terminandoTurno = false;
+      console.error('Error archivando turno:', e);
+      showToast('⚠ No se pudo guardar el historial. El turno sigue abierto, reintenta.');
+    });
+  }
+  document.getElementById('btn-terminar-turno').onclick = terminarTurno;
   document.getElementById('btn-marcar-punto').onclick = ()=> marcarPunto(false);
   document.getElementById('btn-marcar-sim').onclick = ()=> marcarPunto(true);
 
@@ -1595,11 +1754,15 @@ svg.leaflet-image-layer.leaflet-interactive path {
     document.getElementById('g-turno-meta').textContent = t.tipoLabel;
 
     document.getElementById('g-guardias-bloque').style.display = 'block';
-    document.getElementById('g-guardias-lista').innerHTML = t.guardiasPresentes.map(n=>
-      `<li><span>${n}</span><button class="btn-quitar-guardia" data-nombre="${n}">Eliminar</button></li>`
-    ).join('');
+    document.getElementById('g-guardias-lista').innerHTML = t.guardiasPresentes.map((n,i)=>{
+      const desde = entradaDe(t, n);
+      return `<li><span>${escHtml(n)}${desde ? `<span class="g-desde">desde ${desde}</span>` : ''}</span><span class="g-acciones-guardia"><button class="btn-salida-guardia" data-i="${i}">Salida</button><button class="btn-quitar-guardia" data-i="${i}">Eliminar</button></span></li>`;
+    }).join('');
+    document.querySelectorAll('.btn-salida-guardia').forEach(btn=>{
+      btn.onclick = ()=> salidaGuardia(t.guardiasPresentes[Number(btn.dataset.i)]);
+    });
     document.querySelectorAll('.btn-quitar-guardia').forEach(btn=>{
-      btn.onclick = ()=> abrirEliminarGuardia(btn.dataset.nombre);
+      btn.onclick = ()=> abrirEliminarGuardia(t.guardiasPresentes[Number(btn.dataset.i)]);
     });
 
     const r = rondaActiva(t);
@@ -1707,9 +1870,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     mapaTurnoSeleccionado = turnoId;
     mapaRondaSeleccionada = String(numeroRonda);
     if(!rondaMap) inicializarMapa();
-    const selectTurno = document.getElementById('map-turno-select');
-    if(selectTurno) selectTurno.value = turnoId;
-    poblarSelectorRondas();
+    poblarSelectorTurnoMapa(false, true);
     if(rondaMap) rondaMap.invalidateSize();
     renderMapa(true);
     const mapEl = document.getElementById('ronda-map');
@@ -2169,6 +2330,106 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
   document.querySelector('.tab[data-view="administracion"]').addEventListener('click', ()=> renderAdministracion());
 
+
+  // ===================== MAPA: CONSULTA POR FECHA Y TURNO =====================
+  const historialPorFecha = {};   // 'YYYY-MM-DD' -> turnos archivados ese día
+  const TURNO_VACIO = { id:'', tipoLabel:'—', rondas:[], guardiasPresentes:[], iniciado:false };
+  let mapaFecha = '';        // '' = hoy (datos en vivo)
+  let mapaFechaAdmin = '';
+
+  function cargarHistorialDia(fecha, cb){
+    db.ref('altaVista/historialTurnos').orderByKey().startAt(fecha + '_').endAt(fecha + '_').once('value').then(snap=>{
+      const lista = [];
+      snap.forEach(ch=>{
+        const r = ch.val();
+        if(!r) return;
+        const rondas = (Array.isArray(r.rondas) ? r.rondas : []).filter(Boolean).map(x=>({
+          ...x,
+          puntos: Array.isArray(x.puntos) ? x.puntos : [],
+          trayectoria: Array.isArray(x.trayectoria) ? x.trayectoria : []
+        }));
+        lista.push({
+          id: 'h:' + ch.key, tipoLabel: r.tipoLabel, sitio: r.sitio, iniciado: true,
+          guardiasPresentes: Array.isArray(r.guardias) ? r.guardias : [],
+          asistencia: Array.isArray(r.asistencia) ? r.asistencia : [],
+          rondas, horaInicio: r.horaInicio, horaSalida: r.horaSalida, fecha: r.fecha, _hist: true
+        });
+      });
+      historialPorFecha[fecha] = lista;
+      if(cb) cb();
+    }).catch(e=>{
+      console.error('Error leyendo historial:', e);
+      historialPorFecha[fecha] = historialPorFecha[fecha] || [];
+      showToast('No se pudo leer el historial de esa fecha');
+      if(cb) cb();
+    });
+  }
+
+  function turnoMapa(id){
+    if(typeof id === 'string' && id.indexOf('h:') === 0){
+      for(const f in historialPorFecha){
+        const t = historialPorFecha[f].find(x=>x.id === id);
+        if(t) return t;
+      }
+      return TURNO_VACIO;
+    }
+    return turno(id) || TURNO_VACIO;
+  }
+
+  function mostrarGuardiasTurno(t, id){
+    const el = document.getElementById(id);
+    if(!el) return;
+    const a = Array.isArray(t.asistencia) ? t.asistencia : [];
+    if(!t.id || !a.length){ el.style.display = 'none'; return; }
+    el.innerHTML = '<strong>Guardias</strong> · ' + a.map(x=>`${escHtml(x.nombre)} ${x.entrada || '—'}–${x.salida || 'en turno'}${x.motivo ? ' (baja: ' + escHtml(x.motivo) + ')' : ''}`).join(' · ');
+    el.style.display = 'block';
+  }
+
+  function poblarSelectorTurnoMapa(esAdmin, forzarHoy){
+    const sfx = esAdmin ? '-admin' : '';
+    const selTurno = document.getElementById('map-turno-select' + sfx);
+    const inFecha = document.getElementById('map-fecha-select' + sfx);
+    const hoy = fechaHoyISO();
+    if(forzarHoy){ if(esAdmin) mapaFechaAdmin = ''; else mapaFecha = ''; }
+    const fechaSel = (esAdmin ? mapaFechaAdmin : mapaFecha) || hoy;
+    inFecha.max = hoy;
+    inFecha.value = fechaSel;
+
+    const getSel = ()=> esAdmin ? mapaTurnoSeleccionadoAdmin : mapaTurnoSeleccionado;
+    const setSel = v=>{ if(esAdmin) mapaTurnoSeleccionadoAdmin = v; else mapaTurnoSeleccionado = v; };
+    const resetRonda = ()=>{ if(esAdmin) mapaRondaSeleccionadaAdmin = 'todas'; else mapaRondaSeleccionada = 'todas'; };
+    const poblarRondas = ()=>{ if(esAdmin) poblarSelectorRondasAdmin(); else poblarSelectorRondas(); };
+    const dibujar = ()=>{ if(esAdmin) renderMapaAdmin(true); else renderMapa(true); };
+
+    const construir = ()=>{
+      selTurno.innerHTML = '';
+      const agregar = (val, txt)=>{ const o = document.createElement('option'); o.value = val; o.textContent = txt; selTurno.appendChild(o); };
+      if(fechaSel === hoy){
+        turnos.filter(t=>!esAdmin || t.sitio === NOMBRE_SITIO_REAL).forEach(t=>agregar(t.id, textoOpcionTurno(t)));
+      }
+      (historialPorFecha[fechaSel] || []).forEach(t=>agregar(t.id, `${t.tipoLabel} · ${t.horaInicio}–${t.horaSalida} (terminado)`));
+      if(!selTurno.options.length) agregar('', 'Sin turnos registrados en esta fecha');
+      const valores = Array.from(selTurno.options).map(o=>o.value);
+      const antes = getSel();
+      const nuevo = valores.includes(antes) ? antes : valores[0];
+      setSel(nuevo);
+      selTurno.value = nuevo;
+      poblarRondas();
+      return nuevo !== antes;
+    };
+    construir();
+
+    selTurno.onchange = ()=>{ setSel(selTurno.value); resetRonda(); poblarRondas(); dibujar(); };
+    inFecha.onchange = ()=>{
+      const v = inFecha.value || hoy;
+      if(esAdmin) mapaFechaAdmin = (v === hoy ? '' : v); else mapaFecha = (v === hoy ? '' : v);
+      setSel(''); resetRonda();
+      cargarHistorialDia(v, ()=>{ poblarSelectorTurnoMapa(esAdmin); dibujar(); });
+    };
+    // refresca el historial de esa fecha (por si se cerró un turno desde otro dispositivo)
+    cargarHistorialDia(fechaSel, ()=>{ if(construir()) dibujar(); });
+  }
+
   // ===================== MAPA DE RONDAS (Leaflet + OpenStreetMap) =====================
   let rondaMap = null;
   let rondaMapLayer = null;
@@ -2207,29 +2468,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
     L.control.layers({ 'Satélite': capaSatelite, 'Mapa': capaMapa }, null, { position:'topright' }).addTo(rondaMap);
     rondaMapLayer = L.layerGroup().addTo(rondaMap);
 
-    const selectTurno = document.getElementById('map-turno-select');
-    if(selectTurno.options.length === 0){
-      turnos.forEach(t=>{
-        const opt = document.createElement('option');
-        opt.value = t.id;
-        opt.textContent = textoOpcionTurno(t);
-        selectTurno.appendChild(opt);
-      });
-      selectTurno.value = mapaTurnoSeleccionado;
-      selectTurno.onchange = ()=>{
-        mapaTurnoSeleccionado = selectTurno.value;
-        mapaRondaSeleccionada = 'todas';
-        poblarSelectorRondas();
-        renderMapa(true);
-      };
-    } else {
-      actualizarTextosSelectorTurno();
-    }
-    poblarSelectorRondas();
+    poblarSelectorTurnoMapa(false);
   }
 
   function poblarSelectorRondas(){
-    const t = turno(mapaTurnoSeleccionado);
+    const t = turnoMapa(mapaTurnoSeleccionado);
     const selectRonda = document.getElementById('map-ronda-select');
     selectRonda.innerHTML = '';
     const optTodas = document.createElement('option');
@@ -2256,8 +2499,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
     if(!rondaMap) return;
     rondaMap.invalidateSize();
     actualizarTextosSelectorTurno();
-    const t = turno(mapaTurnoSeleccionado);
+    const t = turnoMapa(mapaTurnoSeleccionado);
     rondaMapLayer.clearLayers();
+    mostrarGuardiasTurno(t, 'map-turno-guardias');
 
     const rondasAMostrar = mapaRondaSeleccionada === 'todas'
       ? t.rondas
@@ -2281,6 +2525,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
     if(totalPuntos === 0){
       document.getElementById('ronda-map').style.display = 'none';
+      document.getElementById('ronda-map-empty').textContent = t.id ? (t.rondas.length ? 'Esta ronda todavía no tiene puntos marcados para mostrar en el mapa.' : 'Este turno no tuvo rondas.') : 'No hay turnos registrados en esta fecha.';
       document.getElementById('ronda-map-empty').style.display = 'block';
       return;
     }
@@ -2298,7 +2543,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
           const trLatLngs = ronda.trayectoria.map(p=>[p.lat, p.lng]);
           todosLosLatlngs = todosLosLatlngs.concat(trLatLngs);
           if(trLatLngs.length > 1){
-            L.polyline(trLatLngs, { color:'#1B7C9E', weight:2, opacity:0.5 }).addTo(rondaMapLayer);
+            L.polyline(trLatLngs, { color:'#1B7C9E', weight:4, opacity:0.9, lineJoin:'round' }).addTo(rondaMapLayer);
           }
           // Posición en vivo: solo si esta ronda sigue en curso
           if(ronda.finMinuto == null){
@@ -2318,7 +2563,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
         const latlngs = cronologico.map(p=>[p.lat, p.lng]);
         todosLosLatlngs = todosLosLatlngs.concat(latlngs);
 
-        if(latlngs.length > 1){
+        const hayRecorrido = ronda.trayectoria && ronda.trayectoria.length > 1;
+        if(latlngs.length > 1 && !hayRecorrido){
           L.polyline(latlngs, { color: colorLinea, weight:3, opacity:0.65, dashArray:'6,6' }).addTo(rondaMapLayer);
         }
 
@@ -2385,33 +2631,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
     L.control.layers({ 'Satélite': capaSatelite, 'Mapa': capaMapa }, null, { position:'topright' }).addTo(rondaMapAdmin);
     rondaMapLayerAdmin = L.layerGroup().addTo(rondaMapAdmin);
 
-    const selectTurno = document.getElementById('map-turno-select-admin');
-    const turnosDelSitio = turnos.filter(t=>t.sitio === NOMBRE_SITIO_REAL);
-    if(selectTurno.options.length === 0){
-      turnosDelSitio.forEach(t=>{
-        const opt = document.createElement('option');
-        opt.value = t.id;
-        opt.textContent = textoOpcionTurno(t);
-        selectTurno.appendChild(opt);
-      });
-      selectTurno.value = mapaTurnoSeleccionadoAdmin;
-      selectTurno.onchange = ()=>{
-        mapaTurnoSeleccionadoAdmin = selectTurno.value;
-        mapaRondaSeleccionadaAdmin = 'todas';
-        poblarSelectorRondasAdmin();
-        renderMapaAdmin(true);
-      };
-    } else {
-      Array.from(selectTurno.options).forEach(opt=>{
-        const t = turno(opt.value);
-        if(t) opt.textContent = textoOpcionTurno(t);
-      });
-    }
-    poblarSelectorRondasAdmin();
+    poblarSelectorTurnoMapa(true);
   }
 
   function poblarSelectorRondasAdmin(){
-    const t = turno(mapaTurnoSeleccionadoAdmin);
+    const t = turnoMapa(mapaTurnoSeleccionadoAdmin);
     const selectRonda = document.getElementById('map-ronda-select-admin');
     selectRonda.innerHTML = '';
     const optTodas = document.createElement('option');
@@ -2433,8 +2657,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
   function renderMapaAdmin(ajustarVista){
     if(!rondaMapAdmin) return;
     rondaMapAdmin.invalidateSize();
-    const t = turno(mapaTurnoSeleccionadoAdmin);
+    const t = turnoMapa(mapaTurnoSeleccionadoAdmin);
     rondaMapLayerAdmin.clearLayers();
+    mostrarGuardiasTurno(t, 'map-turno-guardias-admin');
 
     const rondasAMostrar = mapaRondaSeleccionadaAdmin === 'todas'
       ? t.rondas
@@ -2457,6 +2682,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
     if(totalPuntosMarcados + totalTrayectoria === 0){
       document.getElementById('ronda-map-admin').style.display = 'none';
+      document.getElementById('ronda-map-admin-empty').textContent = t.id ? (t.rondas.length ? 'Esta ronda todavía no tiene puntos marcados para mostrar en el mapa.' : 'Este turno no tuvo rondas.') : 'No hay turnos registrados en esta fecha.';
       document.getElementById('ronda-map-admin-empty').style.display = 'block';
       return;
     }
@@ -2472,7 +2698,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
           const trLatLngs = ronda.trayectoria.map(p=>[p.lat, p.lng]);
           todosLosLatlngs = todosLosLatlngs.concat(trLatLngs);
           if(trLatLngs.length > 1){
-            L.polyline(trLatLngs, { color:'#1B7C9E', weight:2, opacity:0.5 }).addTo(rondaMapLayerAdmin);
+            L.polyline(trLatLngs, { color:'#1B7C9E', weight:4, opacity:0.9, lineJoin:'round' }).addTo(rondaMapLayerAdmin);
           }
           if(ronda.finMinuto == null){
             const ultima = ronda.trayectoria[ronda.trayectoria.length - 1];
@@ -2491,7 +2717,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
         const latlngs = cronologico.map(p=>[p.lat, p.lng]);
         todosLosLatlngs = todosLosLatlngs.concat(latlngs);
 
-        if(latlngs.length > 1){
+        const hayRecorrido = ronda.trayectoria && ronda.trayectoria.length > 1;
+        if(latlngs.length > 1 && !hayRecorrido){
           L.polyline(latlngs, { color: colorLinea, weight:3, opacity:0.65, dashArray:'6,6' }).addTo(rondaMapLayerAdmin);
         }
 
@@ -2589,19 +2816,19 @@ svg.leaflet-image-layer.leaflet-interactive path {
     if(navigator.geolocation){
       navigator.geolocation.getCurrentPosition(
         pos => guardarUbicacion(pos.coords.latitude, pos.coords.longitude, Math.round(pos.coords.accuracy)),
-        () => guardarUbicacion(posicionSimulada.lat, posicionSimulada.lng, posicionSimulada.precision_m),
+        () => guardarUbicacion(null, null, null),
         { enableHighAccuracy:true, timeout:5000 }
       );
     } else {
-      guardarUbicacion(posicionSimulada.lat, posicionSimulada.lng, posicionSimulada.precision_m);
+      guardarUbicacion(null, null, null);
     }
   };
   document.getElementById('btn-sos-whatsapp').onclick = ()=>{
     const t = turno(turnoActivoId);
     if(!ultimaUbicacionSOS){ showToast('Aún calculando tu ubicación, intenta en unos segundos'); return; }
     const { lat, lng, precision } = ultimaUbicacionSOS;
-    const mapsLink = `https://maps.google.com/?q=${lat},${lng}`;
-    const mensaje = `🆘 SOS CSP\nSitio: ${t.sitio}\nTurno: ${t.tipoLabel}\nUbicación: ${mapsLink}\nPrecisión GPS: ±${precision}m\nHora: ${new Date().toLocaleTimeString('es-BO')}`;
+    const ubic = (lat == null) ? 'Ubicación: no disponible (sin señal GPS)' : `Ubicación: https://maps.google.com/?q=${lat},${lng}\nPrecisión GPS: ±${precision}m`;
+    const mensaje = `🆘 SOS CSP\nSitio: ${t.sitio}\nTurno: ${t.tipoLabel}\n${ubic}\nHora: ${new Date().toLocaleTimeString('es-BO')}`;
     const url = `https://wa.me/${CONTACTO_SOS}?text=${encodeURIComponent(mensaje)}`;
     window.open(url, '_blank');
   };
@@ -2830,6 +3057,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
       // Se actualizan los turnos existentes en el mismo orden/posición para no romper referencias activas.
       datos.forEach((t, i)=>{
         if(!turnos[i]) return;
+        // Firebase no guarda arreglos vacíos ni null: si un turno fue reiniciado, esos campos faltan en el
+        // snapshot y en este dispositivo quedarían los valores viejos. Se parte de cero antes de aplicar.
+        turnos[i].guardiasPresentes = []; turnos[i].asistencia = []; turnos[i].rondas = []; turnos[i].fechaInicio = null; turnos[i].horaInicio = null;
         Object.keys(t).forEach(k=>{ if(k !== '_minutosTranscurridos' && k !== '_hvSegundosRestantes') turnos[i][k] = t[k]; });
         // Firebase borra los arreglos vacios ([]) al guardarlos -- si una ronda quedo con
         // "puntos" o "trayectoria" vacios, el campo desaparece del todo al volver. Se rellenan
@@ -2842,6 +3072,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
         });
       });
       sincronizandoDesdeFirebase = false;
+      reanudarTrackeoSiCorresponde();
       // Si llega una ronda nueva (o se cierra una) desde otro dispositivo mientras el mapa
       // esta abierto, el desplegable "Ronda 1 / Ronda 2" tambien se tiene que refrescar --
       // si no, se queda pegado con las rondas que existian cuando se abrio esa pantalla.
