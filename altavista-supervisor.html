@@ -1674,6 +1674,18 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
   // Fecha en que inició el turno. Si no se guardó (turnos iniciados antes de esta función), se deduce:
   // un turno noche visto de madrugada (antes de las 12:00) empezó el día anterior.
+  // Turno "vigente": iniciado y dentro de su horario (con 1 h de holgura para el relevo).
+  // Un turno que quedó abierto (nadie pulsó Terminar turno) deja de figurar como "en turno ahora"
+  // en los paneles en vivo, pero sigue disponible en Consulta por fecha bajo el día en que inició.
+  function turnoVigente(t){
+    if(!t.iniciado) return false;
+    const aMin = s => { const [h,m] = String(s).split(':').map(Number); return h*60 + (m||0); };
+    const ahora = new Date(); const n = ahora.getHours()*60 + ahora.getMinutes();
+    const ini = aMin(t.inicio) - 60, fin = aMin(t.fin) + 60;
+    const dentro = (x, a, b) => a <= b ? (x >= a && x <= b) : (x >= a || x <= b);
+    return dentro(n, (ini + 1440) % 1440, fin % 1440);
+  }
+
   function fechaInicioDe(t){
     if(t.fechaInicio) return t.fechaInicio;
     const ahora = new Date();
@@ -1927,7 +1939,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       const hasAlert = sosActivo || hvActivo;
       const tieneNovedad = !hasAlert && novedadesGuardadas.some(n=>n.sitio === sitio);
       const abierta = instalacionesAbiertas.has(sitio);
-      const guardiasEnTurno = turnosDelSitio.filter(t=>t.iniciado);
+      const guardiasEnTurno = turnosDelSitio.filter(turnoVigente);
       const totalGuardiasEnTurno = guardiasEnTurno.reduce((acc,t)=>acc + t.guardiasPresentes.length, 0);
 
       const estadoClase = hasAlert ? ' has-alert' : (tieneNovedad ? ' has-novedad' : '');
@@ -2145,7 +2157,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       } else {
         nombres.forEach(sitio=>{
           const turnosDelSitio = turnos.filter(t=>t.sitio===sitio);
-          const enTurno = turnosDelSitio.filter(t=>t.iniciado).reduce((acc,t)=>acc + t.guardiasPresentes.length, 0);
+          const enTurno = turnosDelSitio.filter(turnoVigente).reduce((acc,t)=>acc + t.guardiasPresentes.length, 0);
           const item = document.createElement('div');
           item.className = 's-summary-detail-item clickable';
           item.innerHTML = `<strong>${sitio}</strong><span>${enTurno} guardia(s) en turno ahora</span>`;
@@ -2250,7 +2262,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     const turnosDelSitio = turnos.filter(t=>t.sitio === sitio);
 
     // Guardia(s) de turno
-    const guardiasEnTurno = turnosDelSitio.filter(t=>t.iniciado);
+    const guardiasEnTurno = turnosDelSitio.filter(turnoVigente);
     document.getElementById('admin-guardias-turno').innerHTML = guardiasEnTurno.length
       ? guardiasEnTurno.flatMap(t=>t.guardiasPresentes.map(g=>`<div class="instalacion-line"><strong>${g}</strong> — ${t.tipoLabel}</div>`)).join('')
       : `<div class="instalacion-line muted">Ningún guardia con turno iniciado.</div>`;
@@ -2258,7 +2270,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     // Rondas realizadas (listado, con quién/hora/duración)
     let rondasHtml = '';
     turnosDelSitio.forEach(t=>{
-      if(t.rondas.length === 0) return;
+      if(t.rondas.length === 0 || (t.iniciado && !turnoVigente(t))) return;
       rondasHtml += `<div class="instalacion-line"><strong>${t.tipoLabel}</strong></div>`;
       for(let i = t.rondas.length - 1; i >= 0; i--){
         const r = t.rondas[i];
