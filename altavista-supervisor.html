@@ -935,6 +935,13 @@ svg.leaflet-image-layer.leaflet-interactive path {
   .map-controls{ display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
   .map-controls input[type=date]{ padding:7px 10px; border-radius:8px; border:1px solid var(--line-light); background:#fff; font-family:'Inter',sans-serif; font-size:13px; color:var(--navy); }
   #btn-terminar-turno{ width:100%; margin-top:10px; background:transparent; border:1px solid rgba(179,65,59,0.7); color:#e7a39e; padding:9px 12px; border-radius:8px; font-family:'Oswald',sans-serif; font-weight:600; font-size:12.5px; letter-spacing:0.04em; text-transform:uppercase; cursor:pointer; }
+  .jor-card{ background:#fff; border:1px solid var(--line-light); border-radius:12px; padding:12px 14px; margin-bottom:10px; }
+  .jor-card h4{ margin:0 0 6px; font-family:'Oswald',sans-serif; font-size:14px; letter-spacing:0.03em; color:var(--navy); text-transform:uppercase; }
+  .jor-sub{ font-size:12px; color:#6b7280; margin-bottom:6px; font-family:'IBM Plex Mono',monospace; }
+  .jor-line{ font-size:13px; color:var(--navy); padding:3px 0; border-top:1px dashed var(--line-light); }
+  .jor-line:first-of-type{ border-top:none; }
+  .jor-muted{ font-size:12.5px; color:#9ca3af; }
+  .jor-lbl{ font-size:11px; letter-spacing:0.05em; text-transform:uppercase; color:#6b7280; margin:8px 0 2px; font-weight:600; }
   .map-controls select{ padding:8px 12px; border-radius:8px; border:1px solid var(--line-light); background:#fff; font-family:'Inter',sans-serif; font-size:13px; color:var(--navy); }
   .map-legend{ font-size:11.5px; color:#6b7280; display:flex; gap:14px; align-items:center; }
   .map-legend .dot{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:4px; vertical-align:middle; }
@@ -1057,6 +1064,10 @@ svg.leaflet-image-layer.leaflet-interactive path {
     </div>
     <div id="s-summary-detail" class="s-summary-detail" style="display:none;"></div>
 
+    <div class="s-section-title">Consulta por fecha · resumen de la jornada</div>
+    <div class="map-controls"><input type="date" id="jor-fecha" title="Fecha a consultar"><span class="jor-muted">Guardias, rondas, novedades y observaciones de ese día</span></div>
+    <div id="jor-contenido"></div>
+
     <div class="s-section-title">Instalaciones</div>
     <div id="s-instalaciones-list"></div>
 
@@ -1088,6 +1099,10 @@ svg.leaflet-image-layer.leaflet-interactive path {
       <div class="s-title" id="admin-sitio-nombre">—</div>
       <div class="g-sub" id="admin-fecha-hoy" style="color:#6b7280; margin-top:2px;">—</div>
     </div>
+
+    <div class="s-section-title">Consulta por fecha · resumen de la jornada</div>
+    <div class="map-controls"><input type="date" id="jor-fecha-admin" title="Fecha a consultar"><span class="jor-muted">Guardias, rondas, novedades y observaciones de ese día</span></div>
+    <div id="jor-contenido-admin"></div>
 
     <div class="s-section-title">Guardia(s) de turno</div>
     <div id="admin-guardias-turno"></div>
@@ -1831,6 +1846,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   }
 
   function renderSupervisor(){
+    try{ renderJornada(false); renderJornada(true); }catch(e){}
     document.getElementById('s-fecha-hoy').textContent = `${fechaLegibleHoy()} · ${new Date().toLocaleTimeString('es-BO', {hour:'2-digit', minute:'2-digit'})}`;
 
     let totalSOS=0, totalHV=0;
@@ -2333,6 +2349,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
   // ===================== MAPA: CONSULTA POR FECHA Y TURNO =====================
   const historialPorFecha = {};   // 'YYYY-MM-DD' -> turnos archivados ese día
+  setTimeout(()=>{ try{ refrescarJornadas(); }catch(e){} }, 1500);
   const TURNO_VACIO = { id:'', tipoLabel:'—', rondas:[], guardiasPresentes:[], iniciado:false };
   let mapaFecha = '';        // '' = hoy (datos en vivo)
   let mapaFechaAdmin = '';
@@ -2349,7 +2366,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
           trayectoria: Array.isArray(x.trayectoria) ? x.trayectoria : []
         }));
         lista.push({
-          id: 'h:' + ch.key, tipoLabel: r.tipoLabel, sitio: r.sitio, iniciado: true,
+          id: 'h:' + ch.key, turnoReal: r.turnoId, tipoLabel: r.tipoLabel, sitio: r.sitio, iniciado: true,
           guardiasPresentes: Array.isArray(r.guardias) ? r.guardias : [],
           asistencia: Array.isArray(r.asistencia) ? r.asistencia : [],
           rondas, horaInicio: r.horaInicio, horaSalida: r.horaSalida, fecha: r.fecha, _hist: true
@@ -2374,6 +2391,99 @@ svg.leaflet-image-layer.leaflet-interactive path {
       return TURNO_VACIO;
     }
     return turno(id) || TURNO_VACIO;
+  }
+
+  // ===================== CONSULTA POR FECHA: RESUMEN DE LA JORNADA =====================
+  let jornadaFecha = '';       // '' = hoy
+  let jornadaFechaAdmin = '';
+  function isoDeFechaBO(s){
+    const m = /(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(s || ''));
+    return m ? `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}` : '';
+  }
+  function diaAnteriorISO(iso){
+    const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() - 1);
+    return fechaHoyISO(d);
+  }
+  // Una novedad del turno noche registrada de madrugada pertenece a la jornada que empezó el día anterior.
+  function jornadaDeNovedad(n){
+    const base = isoDeFechaBO(n.fecha);
+    if(!base) return '';
+    const hh = parseInt(String(n.hora || '').split(':')[0], 10);
+    if(n.turnoId === 'turno2' && !isNaN(hh) && hh < 12) return diaAnteriorISO(base);
+    return base;
+  }
+  function renderJornada(esAdmin){
+    const sfx = esAdmin ? '-admin' : '';
+    const cont = document.getElementById('jor-contenido' + sfx);
+    const inp = document.getElementById('jor-fecha' + sfx);
+    if(!cont || !inp) return;
+    const hoy = fechaHoyISO();
+    const fecha = (esAdmin ? jornadaFechaAdmin : jornadaFecha) || hoy;
+    inp.max = hoy; inp.value = fecha;
+    const sitioOk = x => !esAdmin || x.sitio === NOMBRE_SITIO_REAL;
+
+    // turnos de esa jornada: en vivo (iniciados ese día) + archivados
+    const lista = [];
+    turnos.filter(t=>t.iniciado && (t.fechaInicio || hoy) === fecha && sitioOk(t)).forEach(t=>lista.push({ t, vivo:true, turnoId:t.id }));
+    (historialPorFecha[fecha] || []).filter(sitioOk).forEach(t=>lista.push({ t, vivo:false, turnoId:t.turnoReal }));
+
+    let html = '';
+    [['turno1','Turno Día','07:00–19:00'],['turno2','Turno Noche','19:00–07:00']].forEach(([tid, nombre, horario])=>{
+      const items = lista.filter(x=>x.turnoId === tid);
+      html += `<div class="jor-card"><h4>${nombre}</h4>`;
+      if(!items.length){ html += `<div class="jor-muted">Sin registro de este turno en la fecha.</div></div>`; return; }
+      items.forEach(({t, vivo})=>{
+        html += `<div class="jor-lbl">Guardias</div>`;
+        const nombres = [];
+        (Array.isArray(t.asistencia) ? t.asistencia : []).forEach(x=>{ if(x.nombre && !nombres.includes(x.nombre)) nombres.push(x.nombre); });
+        (t.guardiasPresentes || []).forEach(n=>{ if(!nombres.includes(n)) nombres.push(n); });
+        if(nombres.length) nombres.forEach(n=>{ html += `<div class="jor-line">${escHtml(n)}</div>`; });
+        else html += `<div class="jor-muted">Sin guardias registrados.</div>`;
+        html += `<div class="jor-lbl">Rondas</div>`;
+        const rs = (t.rondas || []).filter(Boolean);
+        if(!rs.length) html += `<div class="jor-muted">Sin rondas realizadas.</div>`;
+        rs.forEach(r=>{
+          const np = Array.isArray(r.puntos) ? r.puntos.length : 0;
+          const fin2 = (r.finMinuto == null) ? 'en curso' : (r.horaFin || 'finalizada');
+          html += `<div class="jor-line">Ronda ${r.numero} · ${escHtml(r.guardia || '—')} · ${r.horaInicio || '—'}–${fin2} · ${np} punto(s) marcado(s)</div>`;
+        });
+      });
+      html += `</div>`;
+    });
+
+    // novedades de la jornada
+    const nov = novedadesGuardadas.filter(n=>sitioOk(n) && jornadaDeNovedad(n) === fecha);
+    html += `<div class="jor-lbl">Novedades (${nov.length})</div><div id="jor-nov${sfx}"></div>`;
+    // observaciones de Administración con mensajes de ese día
+    const obs = [];
+    observacionesAdmin.filter(sitioOk).forEach(h=>{
+      (h.mensajes || []).forEach(m=>{
+        const f = m.ts ? fechaHoyISO(new Date(m.ts)) : isoDeFechaBO(m.fecha);
+        if(f === fecha) obs.push(m);
+      });
+    });
+    obs.sort((a,b)=>(a.ts||0)-(b.ts||0));
+    html += `<div class="jor-lbl">Observaciones y comunicaciones (${obs.length})</div>`;
+    if(!obs.length) html += `<div class="jor-muted">Sin observaciones ese día.</div>`;
+    obs.forEach(m=>{ html += `<div class="obs-mensaje ${m.rol === 'csp' ? 'obs-mensaje-csp' : 'obs-mensaje-admin'}"><strong>${m.rol === 'csp' ? 'CSP' : escHtml(m.autor)}</strong> · ${m.hora || ''}<br>${escHtml(m.mensaje)}</div>`; });
+    const firma = fecha + '|' + html + '|' + nov.map(n=>n.id).join(',');
+    if(cont.dataset.firma === firma){ bindJornada(); return; }  // sin cambios: no se redibuja (evita parpadeo cada 4 s)
+    cont.dataset.firma = firma;
+    cont.innerHTML = html;
+    const wrapNov = document.getElementById('jor-nov' + sfx);
+    if(!nov.length) wrapNov.innerHTML = `<div class="jor-muted">Sin novedades en la jornada.</div>`;
+    else nov.forEach(n=> wrapNov.appendChild(crearTarjetaNovedad(n)));
+
+    bindJornada();
+    function bindJornada(){ inp.onchange = ()=>{
+      const v = inp.value || hoy;
+      if(esAdmin) jornadaFechaAdmin = (v === hoy ? '' : v); else jornadaFecha = (v === hoy ? '' : v);
+      cargarHistorialDia(v, ()=> renderJornada(esAdmin));
+    }; }
+  }
+  function refrescarJornadas(){
+    renderJornada(false); renderJornada(true);
+    [[false, jornadaFecha],[true, jornadaFechaAdmin]].forEach(([adm, f])=>{ cargarHistorialDia(f || fechaHoyISO(), ()=> renderJornada(adm)); });
   }
 
   function mostrarGuardiasTurno(t, id){
@@ -2404,9 +2514,12 @@ svg.leaflet-image-layer.leaflet-interactive path {
     const construir = ()=>{
       selTurno.innerHTML = '';
       const agregar = (val, txt)=>{ const o = document.createElement('option'); o.value = val; o.textContent = txt; selTurno.appendChild(o); };
-      if(fechaSel === hoy){
-        turnos.filter(t=>!esAdmin || t.sitio === NOMBRE_SITIO_REAL).forEach(t=>agregar(t.id, textoOpcionTurno(t)));
-      }
+      // Un turno en curso pertenece al día en que INICIÓ (el turno noche del 28 que sigue el 29 se consulta bajo el 28).
+      // Los turnos sin iniciar se listan solo bajo la fecha de hoy.
+      turnos.filter(t=>!esAdmin || t.sitio === NOMBRE_SITIO_REAL).forEach(t=>{
+        const fechaDelTurno = t.iniciado ? (t.fechaInicio || hoy) : hoy;
+        if(fechaDelTurno === fechaSel) agregar(t.id, textoOpcionTurno(t) + (t.iniciado && t.horaInicio ? ` · desde ${t.horaInicio}` : ''));
+      });
       (historialPorFecha[fechaSel] || []).forEach(t=>agregar(t.id, `${t.tipoLabel} · ${t.horaInicio}–${t.horaSalida} (terminado)`));
       if(!selTurno.options.length) agregar('', 'Sin turnos registrados en esta fecha');
       const valores = Array.from(selTurno.options).map(o=>o.value);
@@ -2445,7 +2558,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     if(!selectTurno) return;
     Array.from(selectTurno.options).forEach(opt=>{
       const t = turno(opt.value);
-      if(t) opt.textContent = textoOpcionTurno(t);
+      if(t) opt.textContent = textoOpcionTurno(t) + (t.iniciado && t.horaInicio ? ` · desde ${t.horaInicio}` : '');
     });
   }
 
