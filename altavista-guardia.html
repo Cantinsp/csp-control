@@ -942,6 +942,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   .jor-line:first-of-type{ border-top:none; }
   .jor-muted{ font-size:12.5px; color:#9ca3af; }
   .jor-lbl{ font-size:11px; letter-spacing:0.05em; text-transform:uppercase; color:#6b7280; margin:8px 0 2px; font-weight:600; }
+  #map-fecha-select, #map-fecha-select-admin{ display:none; }
   .map-controls select{ padding:8px 12px; border-radius:8px; border:1px solid var(--line-light); background:#fff; font-family:'Inter',sans-serif; font-size:13px; color:var(--navy); }
   .map-legend{ font-size:11.5px; color:#6b7280; display:flex; gap:14px; align-items:center; }
   .map-legend .dot{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:4px; vertical-align:middle; }
@@ -1686,12 +1687,13 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
   function fechaInicioDe(t){
     if(t.fechaInicio) return t.fechaInicio;
+    // Fecha de la ÚLTIMA vez que arrancó ese turno: hoy si ya llegó su hora de inicio (con 1 h de holgura), si no, ayer.
     const ahora = new Date();
-    if(t.id === 'turno2' && ahora.getHours() < 12){
-      const d = new Date(ahora); d.setDate(d.getDate() - 1);
-      return fechaHoyISO(d);
-    }
-    return fechaHoyISO(ahora);
+    const [h, m] = String(t.inicio || '0:0').split(':').map(Number);
+    const arranqueHoy = new Date(ahora); arranqueHoy.setHours(h - 1, m || 0, 0, 0);
+    if(ahora >= arranqueHoy) return fechaHoyISO(ahora);
+    const d = new Date(ahora); d.setDate(d.getDate() - 1);
+    return fechaHoyISO(d);
   }
 
   function fechaHoyISO(d){
@@ -2501,6 +2503,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
       const v = inp.value || hoy;
       if(esAdmin) jornadaFechaAdmin = (v === hoy ? '' : v); else jornadaFecha = (v === hoy ? '' : v);
       cargarHistorialDia(v, ()=> renderJornada(esAdmin));
+      // el Mapa de rondas sigue la misma fecha
+      const mi = document.getElementById('map-fecha-select' + sfx);
+      if(mi){ mi.value = v; mi.dispatchEvent(new Event('change')); }
     }; }
   }
   function refrescarJornadas(){
