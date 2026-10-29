@@ -1880,7 +1880,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     document.getElementById('s-total-instalaciones').textContent = nombresInstalaciones().length;
     document.getElementById('s-total-sos').textContent = totalSOS;
     document.getElementById('s-total-hv').textContent = totalHV;
-    document.getElementById('s-total-novedades').textContent = novedadesGuardadas.length;
+    document.getElementById('s-total-novedades').textContent = novedadesHoy().length;
     document.getElementById('s-total-comunicaciones').textContent = observacionesAdmin.length;
 
     renderInstalaciones();
@@ -1935,7 +1935,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       const sosActivo = turnosDelSitio.some(t=>t.sos);
       const hvActivo = turnosDelSitio.some(t=>t.hvPendiente);
       const hasAlert = sosActivo || hvActivo;
-      const tieneNovedad = !hasAlert && novedadesGuardadas.some(n=>n.sitio === sitio);
+      const tieneNovedad = !hasAlert && novedadesHoy().some(n=>n.sitio === sitio);
       const abierta = instalacionesAbiertas.has(sitio);
       const guardiasEnTurno = turnosDelSitio.filter(turnoVigente);
       const totalGuardiasEnTurno = guardiasEnTurno.reduce((acc,t)=>acc + t.guardiasPresentes.length, 0);
@@ -2010,7 +2010,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
         body.appendChild(secRondas);
 
         // 3. Novedades
-        const novedadesDelSitio = novedadesGuardadas.filter(n=>n.sitio === sitio);
+        const novedadesDelSitio = novedadesHoy().filter(n=>n.sitio === sitio);
         const secNovedades = document.createElement('div');
         const tituloNov = document.createElement('div');
         tituloNov.className = 'instalacion-section-title';
@@ -2174,12 +2174,12 @@ svg.leaflet-image-layer.leaflet-interactive path {
         ? afectados.map(t=>`<div class="s-summary-detail-item"><strong>${t.sitio}</strong><span>${t.tipoLabel}${t.iniciado ? ' · '+nombreGuardias(t) : ''}</span></div>`).join('')
         : `<div class="s-summary-detail-empty">Ningún check-in pendiente por el momento.</div>`);
     } else if(summaryDetailAbierto === 'novedades'){
-      panel.innerHTML = `<div class="s-summary-detail-title">Novedades recientes:</div>` + (novedadesGuardadas.length
-        ? novedadesGuardadas.slice(0,6).map(n=>{
+      panel.innerHTML = `<div class="s-summary-detail-title">Novedades de hoy:</div>` + (novedadesHoy().length
+        ? novedadesHoy().slice(0,6).map(n=>{
             const resumen = n.descripcion.length > 90 ? n.descripcion.slice(0,90)+'…' : n.descripcion;
             return `<div class="s-summary-detail-item"><strong>${n.sitio} — ${n.categoria}</strong><span>${n.guardia} · ${resumen}</span></div>`;
           }).join('')
-        : `<div class="s-summary-detail-empty">Aún no se registraron novedades.</div>`);
+        : `<div class="s-summary-detail-empty">No hay novedades registradas hoy.</div>`);
     } else if(summaryDetailAbierto === 'comunicaciones'){
       const titulo = document.createElement('div');
       titulo.className = 's-summary-detail-title';
@@ -2438,6 +2438,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
     if(n.turnoId === 'turno2' && !isNaN(hh) && hh < 12) return diaAnteriorISO(base);
     return base;
   }
+  // Novedades de la jornada de hoy (los paneles en vivo solo muestran lo de hoy; el resto va por fecha)
+  function novedadesHoy(){ const hoy = fechaHoyISO(); return novedadesGuardadas.filter(n=>jornadaDeNovedad(n) === hoy); }
+
   function renderJornada(esAdmin){
     const sfx = esAdmin ? '-admin' : '';
     const cont = document.getElementById('jor-contenido' + sfx);
