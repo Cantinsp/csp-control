@@ -2432,7 +2432,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
   function jornadaDeNovedad(n){
     const base = isoDeFechaBO(n.fecha);
     if(!base) return '';
-    const hh = parseInt(String(n.hora || '').split(':')[0], 10);
+    // la hora puede venir como "07:36 p. m." (12 h) o "19:36" (24 h)
+    let hh = parseInt(String(n.hora || '').split(':')[0], 10);
+    const hs = String(n.hora || '');
+    if(/p\.?\s*m/i.test(hs) && hh < 12) hh += 12;
+    if(/a\.?\s*m/i.test(hs) && hh === 12) hh = 0;
     if(n.turnoId === 'turno2' && !isNaN(hh) && hh < 12) return diaAnteriorISO(base);
     return base;
   }
