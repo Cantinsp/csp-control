@@ -1672,6 +1672,18 @@ svg.leaflet-image-layer.leaflet-interactive path {
     }
   }
 
+  // Fecha en que inició el turno. Si no se guardó (turnos iniciados antes de esta función), se deduce:
+  // un turno noche visto de madrugada (antes de las 12:00) empezó el día anterior.
+  function fechaInicioDe(t){
+    if(t.fechaInicio) return t.fechaInicio;
+    const ahora = new Date();
+    if(t.id === 'turno2' && ahora.getHours() < 12){
+      const d = new Date(ahora); d.setDate(d.getDate() - 1);
+      return fechaHoyISO(d);
+    }
+    return fechaHoyISO(ahora);
+  }
+
   function fechaHoyISO(d){
     d = d || new Date();
     return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
@@ -1693,7 +1705,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     const horaSalida = horaHHmm(ahora);
     if(!confirm(`¿Terminar ${t.tipoLabel}?\n\nSalen: ${nombreGuardias(t)}\nHora de salida de cada uno: ${horaSalida}\n\nEl turno queda guardado en el historial y se libera para el siguiente turno.`)) return;
 
-    const fecha = t.fechaInicio || fechaHoyISO(ahora);
+    const fecha = fechaInicioDe(t);
     const horaInicio = t.horaInicio || t.inicio;
     const key = `${fecha}_${t.id}_${String(horaInicio).replace(':','')}`;
     const asistenciaFinal = (Array.isArray(t.asistencia) && t.asistencia.length
@@ -2424,7 +2436,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
     // turnos de esa jornada: en vivo (iniciados ese día) + archivados
     const lista = [];
-    turnos.filter(t=>t.iniciado && (t.fechaInicio || hoy) === fecha && sitioOk(t)).forEach(t=>lista.push({ t, vivo:true, turnoId:t.id }));
+    turnos.filter(t=>t.iniciado && fechaInicioDe(t) === fecha && sitioOk(t)).forEach(t=>lista.push({ t, vivo:true, turnoId:t.id }));
     (historialPorFecha[fecha] || []).filter(sitioOk).forEach(t=>lista.push({ t, vivo:false, turnoId:t.turnoReal }));
 
     let html = '';
@@ -2517,7 +2529,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       // Un turno en curso pertenece al día en que INICIÓ (el turno noche del 28 que sigue el 29 se consulta bajo el 28).
       // Los turnos sin iniciar se listan solo bajo la fecha de hoy.
       turnos.filter(t=>!esAdmin || t.sitio === NOMBRE_SITIO_REAL).forEach(t=>{
-        const fechaDelTurno = t.iniciado ? (t.fechaInicio || hoy) : hoy;
+        const fechaDelTurno = t.iniciado ? fechaInicioDe(t) : hoy;
         if(fechaDelTurno === fechaSel) agregar(t.id, textoOpcionTurno(t) + (t.iniciado && t.horaInicio ? ` · desde ${t.horaInicio}` : ''));
       });
       (historialPorFecha[fechaSel] || []).forEach(t=>agregar(t.id, `${t.tipoLabel} · ${t.horaInicio}–${t.horaSalida} (terminado)`));
