@@ -1600,16 +1600,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
     t.guardiasPresentes = t.guardiasPresentes.filter(n=>n !== guardiaAEliminar);
     cerrarAsistencia(t, guardiaAEliminar, motivo, document.getElementById('eliminar-guardia-tipo').value);
-    // Queda registrado como novedad, para que el supervisor tenga trazabilidad del motivo.
-    const ahora = new Date();
-    novedadesGuardadas.unshift({
-      id: 'n'+Date.now(), turnoId: t.id, sitio: t.sitio, guardia: guardiaAEliminar,
-      categoria: 'moderado',
-      descripcion: `Guardia dado de baja del turno. Motivo: ${motivo}`,
-      fecha: ahora.toLocaleDateString('es-BO'),
-      hora: ahora.toLocaleTimeString('es-BO', {hour:'2-digit', minute:'2-digit'}),
-      minutosTurno: t._minutosTranscurridos, adjuntos: []
-    });
+    // La baja queda registrada en la asistencia del turno (con su motivo), no como novedad.
 
     document.getElementById('modal-eliminar-guardia').classList.remove('show');
     showToast(`${guardiaAEliminar} eliminado de ${t.tipoLabel}`);
@@ -3244,7 +3235,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     const datos = snap.val();
     sincronizandoDesdeFirebase = true;
     novedadesGuardadas.length = 0;
-    if(Array.isArray(datos)) datos.forEach(n=>{ if(n) novedadesGuardadas.push(n); });
+    if(Array.isArray(datos)) datos.forEach(n=>{ if(n && !/^Guardia dado de baja del turno/.test(n.descripcion || '')) novedadesGuardadas.push(n); });
     sincronizandoDesdeFirebase = false;
     renderSupervisor();
     if(document.getElementById('view-administracion').classList.contains('active')) renderAdministracion();
