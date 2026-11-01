@@ -1156,6 +1156,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
   <div class="modal">
     <h3>Eliminar guardia del turno</h3>
     <p class="hint" id="eliminar-guardia-nombre">Guardia: —</p>
+    <label style="font-size:11.5px; color:#6b7280; text-transform:uppercase; letter-spacing:0.04em; font-family:'IBM Plex Mono',monospace;">Tipo de baja</label>
+    <select id="eliminar-guardia-tipo" style="margin:6px 0 12px;">
+      <option value="error">Error de registro (no trabajó en este turno)</option>
+      <option value="retiro">Se retiró del servicio (trabajó parte del turno)</option>
+    </select>
     <label style="font-size:11.5px; color:#6b7280; text-transform:uppercase; letter-spacing:0.04em; font-family:'IBM Plex Mono',monospace;">Motivo de la baja (obligatorio)</label>
     <textarea id="eliminar-guardia-motivo" placeholder="Explica por qué se retira este guardia del turno..." style="margin-top:6px;"></textarea>
     <div class="modal-actions">
@@ -1594,7 +1599,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     if(!confirm(`¿Confirmas eliminar a ${guardiaAEliminar} de ${t.tipoLabel}?\n\nMotivo: ${motivo}`)) return;
 
     t.guardiasPresentes = t.guardiasPresentes.filter(n=>n !== guardiaAEliminar);
-    cerrarAsistencia(t, guardiaAEliminar, motivo);
+    cerrarAsistencia(t, guardiaAEliminar, motivo, document.getElementById('eliminar-guardia-tipo').value);
     // Queda registrado como novedad, para que el supervisor tenga trazabilidad del motivo.
     const ahora = new Date();
     novedadesGuardadas.unshift({
@@ -1639,15 +1644,15 @@ svg.leaflet-image-layer.leaflet-interactive path {
     if(!Array.isArray(t.asistencia)) t.asistencia = [];
     t.asistencia.push({ nombre, entrada: horaHHmm() });
   }
-  function cerrarAsistencia(t, nombre, motivo){
+  function cerrarAsistencia(t, nombre, motivo, tipo){
     if(!Array.isArray(t.asistencia)) t.asistencia = [];
     for(let i = t.asistencia.length - 1; i >= 0; i--){
       const x = t.asistencia[i];
-      if(x.nombre === nombre && !x.salida){ x.salida = horaHHmm(); if(motivo) x.motivo = motivo; return; }
+      if(x.nombre === nombre && !x.salida){ x.salida = horaHHmm(); if(motivo){ x.motivo = motivo; x.bajaTipo = tipo || 'retiro'; } return; }
     }
     // turno anterior a este cambio: no había fila de entrada; se crea con la hora de inicio del turno
     const fila = { nombre, entrada: t.horaInicio || t.inicio, salida: horaHHmm() };
-    if(motivo) fila.motivo = motivo;
+    if(motivo){ fila.motivo = motivo; fila.bajaTipo = tipo || 'retiro'; }
     t.asistencia.push(fila);
   }
 
@@ -1722,7 +1727,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       ? t.asistencia.map(x=>({ ...x }))
       : t.guardiasPresentes.map(n=>({ nombre:n, entrada:horaInicio })));
     asistenciaFinal.forEach(x=>{ if(!x.salida && t.guardiasPresentes.includes(x.nombre)) x.salida = horaSalida; });
-    const nombresTurno = []; asistenciaFinal.forEach(x=>{ if(!nombresTurno.includes(x.nombre)) nombresTurno.push(x.nombre); });
+    const nombresTurno = []; asistenciaFinal.forEach(x=>{ if(!(x.bajaTipo === 'error') && !nombresTurno.includes(x.nombre)) nombresTurno.push(x.nombre); });
     const registro = JSON.parse(JSON.stringify({
       fecha, turnoId: t.id, tipoLabel: t.tipoLabel, sitio: t.sitio,
       horarioTurno: `${t.inicio}–${t.fin}`, horaInicio, horaSalida,
@@ -2464,9 +2469,15 @@ svg.leaflet-image-layer.leaflet-interactive path {
       items.forEach(({t, vivo})=>{
         html += `<div class="jor-lbl">Guardias</div>`;
         const nombres = [];
-        (Array.isArray(t.asistencia) ? t.asistencia : []).forEach(x=>{ if(x.nombre && !nombres.includes(x.nombre)) nombres.push(x.nombre); });
-        (t.guardiasPresentes || []).forEach(n=>{ if(!nombres.includes(n)) nombres.push(n); });
-        if(nombres.length) nombres.forEach(n=>{ html += `<div class="jor-line">${escHtml(n)}</div>`; });
+        // Guardias que prestaron servicio: los dados de baja con "Eliminar" (error de registro, etc.) no cuentan.
+        // Quien se retiró con "Salida" sí figura.
+        const asis = Array.isArray(t.asistencia) ? t.asistencia : [];
+        const esError = x => x.bajaTipo ? x.bajaTipo === 'error' : (!!x.motivo && /error|equivoc|por error/i.test(x.motivo)); // registros antiguos sin tipo: se deduce del texto
+        const bajaRetiro = {};
+        asis.forEach(x=>{ if(x.nombre && !esError(x) && !nombres.includes(x.nombre)){ nombres.push(x.nombre); if(x.motivo) bajaRetiro[x.nombre] = x.motivo; } });
+        // Registros antiguos sin asistencia: se usa la lista de guardias del turno
+        if(!asis.length) (Array.isArray(t.guardiasPresentes) ? t.guardiasPresentes : []).forEach(n=>{ if(!nombres.includes(n)) nombres.push(n); });
+        if(nombres.length) nombres.forEach(n=>{ html += `<div class="jor-line">${escHtml(n)}${bajaRetiro[n] ? ' <span class="jor-muted">· se retiró: ' + escHtml(bajaRetiro[n]) + '</span>' : ''}</div>`; });
         else html += `<div class="jor-muted">Sin guardias registrados.</div>`;
         html += `<div class="jor-lbl">Rondas</div>`;
         const rs = (t.rondas || []).filter(Boolean);
