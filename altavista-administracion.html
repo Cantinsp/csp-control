@@ -982,9 +982,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
         <ul class="g-guardias-lista" id="g-guardias-lista"></ul>
         <div style="display:flex; gap:6px; margin-top:8px;">
           <input type="text" id="input-guardia-extra" list="lista-guardias-conocidos" placeholder="Nombre del guardia que llega..." autocomplete="off" style="flex:1; font-size:12.5px; padding:8px 10px;">
-          <button id="btn-agregar-guardia-extra" style="flex-shrink:0; background:rgba(245,243,238,0.08); border:1px solid var(--line); color:var(--off-white); padding:0 12px; border-radius:6px; font-family:'Oswald',sans-serif; font-weight:600; font-size:12px; cursor:pointer;">+ Sumar</button>
+          <button id="btn-agregar-guardia-extra" style="flex-shrink:0; background:rgba(245,243,238,0.08); border:1px solid var(--line); color:var(--off-white); padding:0 12px; border-radius:6px; font-family:'Oswald',sans-serif; font-weight:600; font-size:12px; cursor:pointer;">▶ Iniciar turno</button>
         </div>
-        <button id="btn-terminar-turno">■ Terminar turno · registrar salida</button>
+        <button id="btn-terminar-turno" style="display:none !important;">■ Terminar turno · registrar salida</button>
       </div>
     </div>
 
@@ -1002,7 +1002,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
         </div>
         <datalist id="lista-guardias-conocidos"></datalist>
         <div id="chips-guardias-turno" class="chips-guardias"></div>
-        <button class="mark-btn" id="btn-comenzar-turno" style="margin-top:14px;" disabled><span class="ic">▶</span>Comenzar Turno</button>
+        <button class="mark-btn" id="btn-comenzar-turno" style="margin-top:14px;" disabled><span class="ic">▶</span>Iniciar turno</button>
       </div>
     </div>
 
@@ -1614,7 +1614,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     const t = turno(turnoActivoId);
     if(t.guardiasPresentes.length === 0){ showToast('Agrega al menos un guardia para comenzar el turno'); return; }
     t.iniciado = true;
-    t.fechaInicio = fechaHoyISO();
+    t.fechaInicio = jornadaVigenteDe(t);
     t.horaInicio = horaHHmm();
     t.asistencia = t.guardiasPresentes.map(n=>({ nombre:n, entrada:t.horaInicio }));
     showToast(`${t.tipoLabel} iniciado · ${nombreGuardias(t)}`);
@@ -1661,7 +1661,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     guardarTurnos();
     renderGuardia(); renderSupervisor();
     if(t.guardiasPresentes.length === 0 && t.iniciado){
-      if(confirm('No quedan guardias en el turno.\n\n¿Terminar el turno ahora?')) terminarTurno();
+      terminarTurno({ t, sinConfirmar:true });   // con la salida del último guardia el turno se cierra y se archiva solo
     }
   }
 
@@ -1678,6 +1678,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
     const dentro = (x, a, b) => a <= b ? (x >= a && x <= b) : (x >= a || x <= b);
     return dentro(n, (ini + 1440) % 1440, fin % 1440);
   }
+
+  // Fecha de la jornada que corresponde a este turno AHORA (hoy, o ayer si es un turno que arrancó antes y aún no llega su hora de inicio).
+  function jornadaVigenteDe(t){ return fechaInicioDe({ id:t.id, inicio:t.inicio, fechaInicio:null }); }
 
   function fechaInicioDe(t){
     if(t.fechaInicio) return t.fechaInicio;
@@ -1702,14 +1705,16 @@ svg.leaflet-image-layer.leaflet-interactive path {
   // Termina el turno: registra la salida de los guardias, archiva el turno completo en el
   // historial (altaVista/historialTurnos) y deja el turno vacío para el siguiente.
   let terminandoTurno = false;
-  function terminarTurno(){
-    const t = turno(turnoActivoId);
+  function terminarTurno(opts){
+    opts = (opts && opts.t !== undefined || (opts && opts.auto) || (opts && opts.sinConfirmar)) ? opts : {};
+    const auto = !!opts.auto;
+    const t = opts.t || turno(turnoActivoId);
     if(!t.iniciado){ showToast('Este turno todavía no comenzó'); return; }
-    if(rondaActiva(t)){ showToast('Finaliza la ronda en curso antes de terminar el turno'); return; }
+    if(rondaActiva(t) && !auto){ showToast('Finaliza la ronda en curso antes de terminar el turno'); return; }
     if(terminandoTurno) return;
     const ahora = new Date();
-    const horaSalida = horaHHmm(ahora);
-    if(!confirm(`¿Terminar ${t.tipoLabel}?\n\nSalen: ${nombreGuardias(t)}\nHora de salida de cada uno: ${horaSalida}\n\nEl turno queda guardado en el historial y se libera para el siguiente turno.`)) return;
+    const horaSalida = auto ? (t.fin || horaHHmm(ahora)) : horaHHmm(ahora);
+    if(!auto && !opts.sinConfirmar && !confirm(`¿Terminar ${t.tipoLabel}?\n\nSalen: ${nombreGuardias(t)}\nHora de salida de cada uno: ${horaSalida}\n\nEl turno queda guardado en el historial y se libera para el siguiente turno.`)) return;
 
     const fecha = fechaInicioDe(t);
     const horaInicio = t.horaInicio || t.inicio;
@@ -1717,7 +1722,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     const asistenciaFinal = (Array.isArray(t.asistencia) && t.asistencia.length
       ? t.asistencia.map(x=>({ ...x }))
       : t.guardiasPresentes.map(n=>({ nombre:n, entrada:horaInicio })));
-    asistenciaFinal.forEach(x=>{ if(!x.salida && t.guardiasPresentes.includes(x.nombre)) x.salida = horaSalida; });
+    asistenciaFinal.forEach(x=>{ if(!x.salida && (auto || t.guardiasPresentes.includes(x.nombre))){ x.salida = horaSalida; if(auto) x.salidaAuto = true; } });
     const nombresTurno = []; asistenciaFinal.forEach(x=>{ if(!(x.bajaTipo === 'error') && !nombresTurno.includes(x.nombre)) nombresTurno.push(x.nombre); });
     const registro = JSON.parse(JSON.stringify({
       fecha, turnoId: t.id, tipoLabel: t.tipoLabel, sitio: t.sitio,
@@ -1731,7 +1736,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       t.fechaInicio = null; t.horaInicio = null; t._hvSegundosRestantes = intervaloHV(t);
       detenerTrackeoAutomatico();
       terminandoTurno = false;
-      showToast(`✓ ${t.tipoLabel} terminado · salida ${horaSalida}`);
+      showToast(auto ? `${t.tipoLabel} del día anterior cerrado automáticamente. Vuelve a iniciar turno.` : `✓ ${t.tipoLabel} terminado · salida ${horaSalida}`);
       guardarTurnos();
       renderGuardia(); renderSupervisor();
     }).catch(e=>{
@@ -1740,7 +1745,15 @@ svg.leaflet-image-layer.leaflet-interactive path {
       showToast('⚠ No se pudo guardar el historial. El turno sigue abierto, reintenta.');
     });
   }
-  document.getElementById('btn-terminar-turno').onclick = terminarTurno;
+  document.getElementById('btn-terminar-turno').onclick = ()=> terminarTurno();
+
+  // Un turno que quedó abierto de un día anterior (nadie registró la salida) se cierra y archiva solo,
+  // con su fecha original. Solo lo hace el celular del guardia (no Supervisor/Administración).
+  function revisarTurnosVencidos(){
+    if(!/guardia/i.test(location.pathname) || terminandoTurno) return;
+    const t = turnos.find(x=>x.iniciado && x.fechaInicio && x.fechaInicio !== jornadaVigenteDe(x));
+    if(t) terminarTurno({ t, auto:true, sinConfirmar:true });
+  }
   document.getElementById('btn-marcar-punto').onclick = ()=> marcarPunto(false);
   document.getElementById('btn-marcar-sim').onclick = ()=> marcarPunto(true);
 
@@ -1789,14 +1802,12 @@ svg.leaflet-image-layer.leaflet-interactive path {
     document.getElementById('g-guardias-bloque').style.display = 'block';
     document.getElementById('g-guardias-lista').innerHTML = t.guardiasPresentes.map((n,i)=>{
       const desde = entradaDe(t, n);
-      return `<li><span>${escHtml(n)}${desde ? `<span class="g-desde">desde ${desde}</span>` : ''}</span><span class="g-acciones-guardia"><button class="btn-salida-guardia" data-i="${i}">Salida</button><button class="btn-quitar-guardia" data-i="${i}">Eliminar</button></span></li>`;
+      return `<li><span>${escHtml(n)}${desde ? `<span class="g-desde">desde ${desde}</span>` : ''}</span><span class="g-acciones-guardia"><button class="btn-salida-guardia" data-i="${i}">Salida</button></span></li>`;
     }).join('');
     document.querySelectorAll('.btn-salida-guardia').forEach(btn=>{
       btn.onclick = ()=> salidaGuardia(t.guardiasPresentes[Number(btn.dataset.i)]);
     });
-    document.querySelectorAll('.btn-quitar-guardia').forEach(btn=>{
-      btn.onclick = ()=> abrirEliminarGuardia(t.guardiasPresentes[Number(btn.dataset.i)]);
-    });
+
 
     const r = rondaActiva(t);
     const statusEl = document.getElementById('ronda-status');
@@ -3220,6 +3231,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       });
       sincronizandoDesdeFirebase = false;
       reanudarTrackeoSiCorresponde();
+      setTimeout(revisarTurnosVencidos, 800);
       // Si llega una ronda nueva (o se cierra una) desde otro dispositivo mientras el mapa
       // esta abierto, el desplegable "Ronda 1 / Ronda 2" tambien se tiene que refrescar --
       // si no, se queda pegado con las rondas que existian cuando se abrio esa pantalla.
