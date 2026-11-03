@@ -1570,6 +1570,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
     const nombre = input.value.trim();
     if(!nombre) return;
     if(t.guardiasPresentes.includes(nombre)){ showToast('Ese nombre ya está en la lista'); return; }
+    if(!t.iniciado){   // turno aún sin iniciar: este botón lo inicia con ese guardia
+      t.guardiasPresentes.push(nombre); registrarNombreEnHistorial(nombre); input.value = ''; comenzarTurno(); return;
+    }
     t.guardiasPresentes.push(nombre);
     registrarNombreEnHistorial(nombre);
     registrarEntrada(t, nombre);
@@ -1790,6 +1793,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
     if(!t.iniciado){
       pantallaInicio.style.display = 'block';
       contenido.style.display = 'none';
+      document.getElementById('g-guardias-bloque').style.display = 'none';  // no mostrar guardias de otro turno
       document.getElementById('g-sitio-nombre').textContent = t.sitio;
       document.getElementById('g-turno-meta').textContent = t.tipoLabel;
       document.getElementById('inicio-turno-label').textContent = t.tipoLabel;
