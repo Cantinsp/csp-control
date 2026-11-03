@@ -1745,6 +1745,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       t.fechaInicio = null; t.horaInicio = null; t._hvSegundosRestantes = intervaloHV(t);
       detenerTrackeoAutomatico();
       terminandoTurno = false;
+      cargarEstadoTurnos();
       showToast(auto ? `${t.tipoLabel} del día anterior cerrado automáticamente. Vuelve a iniciar turno.` : `✓ ${t.tipoLabel} terminado · salida ${horaSalida}`);
       guardarTurnos();
       renderGuardia(); renderSupervisor();
@@ -1767,6 +1768,15 @@ svg.leaflet-image-layer.leaflet-interactive path {
   document.getElementById('btn-marcar-sim').onclick = ()=> marcarPunto(true);
 
   // ===================== RENDER: GUARD VIEW =====================
+  // ¿Este turno ya se cerró y quedó archivado en su jornada actual?
+  function turnoTerminado(t){
+    try{ return !t.iniciado && (historialPorFecha[jornadaVigenteDe(t)] || []).some(x=>x.turnoReal === t.id); }catch(e){ return false; }
+  }
+  function cargarEstadoTurnos(){
+    const hoy = fechaHoyISO(); const d = new Date(); d.setDate(d.getDate() - 1); const ayer = fechaHoyISO(d);
+    [hoy, ayer].forEach(f=> cargarHistorialDia(f, ()=>{ try{ renderGuardia(); renderSupervisor(); }catch(e){} }));
+  }
+
   function renderSwitcher(){
     const el = document.getElementById('g-switcher');
     el.innerHTML = '';
@@ -1774,7 +1784,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       const b = document.createElement('button');
       b.className = 'g-switch-btn' + (t.id===turnoActivoId ? ' active' : '');
       b.textContent = !t.iniciado
-        ? `${t.tipoLabel} (sin iniciar)`
+        ? `${t.tipoLabel} (${turnoTerminado(t) ? 'terminado' : 'sin iniciar'})`
         : (t.guardiasPresentes.length === 1 ? `${t.tipoLabel} · ${t.guardiasPresentes[0]}` : `${t.tipoLabel} (${t.guardiasPresentes.length} guardias)`);
       b.onclick = ()=>{ turnoActivoId = t.id; renderGuardia(); };
       el.appendChild(b);
@@ -1798,7 +1808,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       document.getElementById('g-turno-meta').textContent = t.tipoLabel;
       document.getElementById('inicio-turno-label').textContent = t.tipoLabel;
       document.getElementById('inicio-turno-sitio').textContent = t.sitio;
-      document.getElementById('inicio-turno-horario').textContent = `${fechaLegibleHoy()} · Horario: ${t.inicio}–${t.fin}`;
+      document.getElementById('inicio-turno-horario').textContent = `${fechaLegibleHoy()} · Horario: ${t.inicio}–${t.fin}` + (turnoTerminado(t) ? ' · TURNO TERMINADO' : '');
       actualizarDatalistGuardias();
       renderChipsGuardias();
       return;
@@ -2388,7 +2398,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
   // ===================== MAPA: CONSULTA POR FECHA Y TURNO =====================
   const historialPorFecha = {};   // 'YYYY-MM-DD' -> turnos archivados ese día
-  setTimeout(()=>{ try{ refrescarJornadas(); }catch(e){} }, 1500);
+  setTimeout(()=>{ try{ refrescarJornadas(); cargarEstadoTurnos(); }catch(e){} }, 1500);
   const TURNO_VACIO = { id:'', tipoLabel:'—', rondas:[], guardiasPresentes:[], iniciado:false };
   let mapaFecha = '';        // '' = hoy (datos en vivo)
   let mapaFechaAdmin = '';
@@ -2605,7 +2615,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
   let mapaRondaSeleccionada = 'todas';
 
   function textoOpcionTurno(t){
-    return t.iniciado ? t.tipoLabel : `${t.tipoLabel} (sin iniciar)`;
+    return t.iniciado ? t.tipoLabel : `${t.tipoLabel} (${turnoTerminado(t) ? 'terminado' : 'sin iniciar'})`;
   }
 
   function actualizarTextosSelectorTurno(){
