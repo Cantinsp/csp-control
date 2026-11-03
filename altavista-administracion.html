@@ -2479,7 +2479,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       html += `<div class="jor-card"><h4>${nombre}</h4>`;
       if(!items.length){ html += `<div class="jor-muted">Sin registro de este turno en la fecha.</div></div>`; return; }
       items.forEach(({t, vivo})=>{
-        html += `<div class="jor-lbl">Guardias</div>`;
+        html += `<div class="jor-lbl">Guardias · <span style="color:${vivo ? '#2E7D5B' : '#6b7280'}">${vivo ? 'turno en curso' : 'turno terminado'}</span></div>`;
         const nombres = [];
         // Guardias que prestaron servicio: los dados de baja con "Eliminar" (error de registro, etc.) no cuentan.
         // Quien se retiró con "Salida" sí figura.
