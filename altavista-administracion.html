@@ -994,7 +994,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
       <div class="inicio-turno-card">
         <div class="g-eyebrow" id="inicio-turno-label">Turno</div>
         <div class="g-title" style="margin-bottom:4px;" id="inicio-turno-sitio">—</div>
-        <div class="g-sub" id="inicio-turno-horario" style="margin-bottom:18px;">—</div>
+        <div class="g-sub" id="inicio-turno-horario" style="margin-bottom:6px;">—</div>
+        <div id="inicio-turno-terminado" style="display:none; margin-bottom:18px; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font-size:13px; color:var(--off-white);"></div>
         <label style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:rgba(245,243,238,0.5); text-transform:uppercase; letter-spacing:0.05em;">Guardia(s) presente(s) en este turno</label>
         <div style="display:flex; gap:8px; margin-top:6px;">
           <input type="text" id="input-nombre-guardia" list="lista-guardias-conocidos" placeholder="Escribe un nombre..." autocomplete="off" style="flex:1;">
@@ -1772,6 +1773,19 @@ svg.leaflet-image-layer.leaflet-interactive path {
   function turnoTerminado(t){
     try{ return !t.iniciado && (historialPorFecha[jornadaVigenteDe(t)] || []).some(x=>x.turnoReal === t.id); }catch(e){ return false; }
   }
+  // Nombres de los guardias del turno ya terminado (sin los dados de baja por error de registro)
+  function guardiasDeTurnoTerminado(t){
+    const nombres = [];
+    try{
+      (historialPorFecha[jornadaVigenteDe(t)] || []).filter(x=>x.turnoReal === t.id).forEach(r=>{
+        const asis = Array.isArray(r.asistencia) ? r.asistencia : [];
+        const esError = x => x.bajaTipo ? x.bajaTipo === 'error' : (!!x.motivo && /error|equivoc/i.test(x.motivo));
+        asis.forEach(x=>{ if(x.nombre && !esError(x) && !nombres.includes(x.nombre)) nombres.push(x.nombre); });
+        if(!asis.length) (r.guardiasPresentes || []).forEach(n=>{ if(!nombres.includes(n)) nombres.push(n); });
+      });
+    }catch(e){}
+    return nombres;
+  }
   function cargarEstadoTurnos(){
     const hoy = fechaHoyISO(); const d = new Date(); d.setDate(d.getDate() - 1); const ayer = fechaHoyISO(d);
     [hoy, ayer].forEach(f=> cargarHistorialDia(f, ()=>{ try{ renderGuardia(); renderSupervisor(); }catch(e){} }));
@@ -1809,6 +1823,10 @@ svg.leaflet-image-layer.leaflet-interactive path {
       document.getElementById('inicio-turno-label').textContent = t.tipoLabel;
       document.getElementById('inicio-turno-sitio').textContent = t.sitio;
       document.getElementById('inicio-turno-horario').textContent = `${fechaLegibleHoy()} · Horario: ${t.inicio}–${t.fin}` + (turnoTerminado(t) ? ' · TURNO TERMINADO' : '');
+      const cajaTerm = document.getElementById('inicio-turno-terminado');
+      const gTerm = turnoTerminado(t) ? guardiasDeTurnoTerminado(t) : [];
+      if(gTerm.length){ cajaTerm.style.display = 'block'; cajaTerm.innerHTML = '<strong>Turno terminado</strong> · Guardia(s): ' + gTerm.map(escHtml).join(', '); }
+      else { cajaTerm.style.display = 'none'; }
       actualizarDatalistGuardias();
       renderChipsGuardias();
       return;
